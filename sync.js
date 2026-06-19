@@ -20,15 +20,15 @@
 //       sert de "clé" pour que seuls vous deux tombiez sur les mêmes données.)
 // ============================================================================
 
-const ENABLE_SYNC = false;
+const ENABLE_SYNC = true;
 
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyDEqmxDPpP2tDRUe_991dN3dhLT1AppdBs",
+  authDomain: "nola-james.firebaseapp.com",
+  projectId: "nola-james",
+  storageBucket: "nola-james.firebasestorage.app",
+  messagingSenderId: "704929755659",
+  appId: "1:704929755659:web:4a771653be058c805a8d0e"
 };
 
 // Code commun à saisir sur chaque appareil. Garde-le secret : il joue le rôle
