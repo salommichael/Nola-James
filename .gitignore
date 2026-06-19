@@ -1,0 +1,4 @@
+# Outils de dev locaux, non nécessaires en ligne
+serve.ps1
+*.local
+.DS_Store
