@@ -1249,13 +1249,16 @@ document.getElementById("who-badge").addEventListener("click", openParentPicker)
 // ---- Bannière mode démo ----
 function updateDemoBanner() {
   const el = document.getElementById("demo-banner");
+  const sync = document.getElementById("sync-badge");
   if (!el) return;
   if (Storage.demo) {
     el.classList.remove("hidden");
-    el.innerHTML = `🧪 <b>MODE DÉMO</b> — tes modifications ne touchent pas les vraies données. <button class="btn small green" data-act="exit-demo">Quitter</button>`;
+    el.innerHTML = `🧪 Démo <button data-act="exit-demo" title="Quitter le mode démo">✕</button>`;
+    if (sync) sync.style.display = "none"; // évite le doublon en haut à droite
   } else {
     el.classList.add("hidden");
     el.innerHTML = "";
+    if (sync) sync.style.display = "";
   }
 }
 document.getElementById("demo-banner").addEventListener("click", e => {
