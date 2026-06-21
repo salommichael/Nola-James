@@ -1300,9 +1300,9 @@ function updateDemoBanner() {
   if (Storage.demo) {
     el.classList.remove("hidden");
     el.innerHTML = Storage.urlDemo
-      ? `🧪 Démo (test)`
-      : `🧪 Démo <button data-act="exit-demo" title="Quitter le mode démo">✕</button>`;
-    if (sync) sync.style.display = "none"; // évite le doublon en haut à droite
+      ? `🧪 DÉMO DE TEST — données d'exemple, rien de réel`
+      : `🧪 MODE DÉMO — tes changements ne sont pas enregistrés <button data-act="exit-demo">Quitter</button>`;
+    if (sync) sync.style.display = "none";
   } else {
     el.classList.add("hidden");
     el.innerHTML = "";
