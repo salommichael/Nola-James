@@ -39,7 +39,8 @@ const DEFAULT_STATE = {
     { id: "p3", size: "S", icon: "📢", label: "Crier / hurler / faire du bruit sans raison" },
     { id: "p4", size: "S", icon: "😤", label: "Râler" },
     { id: "p5", size: "M", icon: "✋", label: "Violence physique (taper, pincer, pousser)" },
-    { id: "p6", size: "M", icon: "🤥", label: "Mentir et maintenir le mensonge" },
+    { id: "p6", size: "M", icon: "🤥", label: "Mensonge maintenu" },
+    { id: "p6b", size: "S", icon: "🙊", label: "Mensonge avoué" },
     { id: "p7", size: "M", icon: "💔", label: "Blesser quelqu'un avec ses mots" },
     { id: "p8", size: "L", icon: "🖍️", label: "Dessiner sur les murs" },
     { id: "p9", size: "L", icon: "⚠️", label: "Mettre quelqu'un en danger" },
@@ -70,7 +71,8 @@ const DEFAULT_STATE = {
   week: {},            // { weekKey: { childId: { routineId: [7 bool] } } }
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
   session: null,       // séance de purge en cours : { childId, running, runningSince }
-  log: []              // historique étoiles (validations + récompenses)
+  log: [],             // historique étoiles (validations + récompenses)
+  migrations: {}       // marqueurs de migration de données déjà appliquées
 };
 
 const TIER_INFO = {
@@ -117,6 +119,17 @@ function hydrate(loaded) {
     durations: { S: 15, M: 60, L: 240, ...(c.durations || {}) },
     thresholds: { yellow: 1, orange: 2, red: 4, ...(c.thresholds || {}) }
   }));
+  // Migration : mensonge unique → mensonge maintenu (M) + mensonge avoué (S)
+  s.migrations = loaded.migrations || {};
+  if (!s.migrations.mensonge2) {
+    const p6 = s.punishments.find(x => x.id === "p6");
+    if (p6 && p6.label === "Mentir et maintenir le mensonge") p6.label = "Mensonge maintenu";
+    if (!s.punishments.find(x => x.id === "p6b")) {
+      const i = s.punishments.findIndex(x => x.id === "p6");
+      s.punishments.splice(i >= 0 ? i + 1 : s.punishments.length, 0, { id: "p6b", size: "S", icon: "🙊", label: "Mensonge avoué" });
+    }
+    s.migrations.mensonge2 = true;
+  }
   return s;
 }
 
@@ -533,16 +546,11 @@ view.addEventListener("click", (e) => {
   else if (a === "give") {
     const c = child(childId);
     const p = state.punishments.find(x => x.id === el.dataset.pun);
-    let durationMin = c.durations[p.size], comment = "";
-    if (p.size === "M") {
-      if (confirm(`${p.label}\n\nVérité dite IMMÉDIATEMENT ?\n\nOK = oui → durée réduite à ${fmtDur(c.durations.S)}\nAnnuler = non → ${fmtDur(durationMin)}`)) {
-        durationMin = c.durations.S; comment = "Vérité immédiate";
-      }
-    }
+    const durationMin = c.durations[p.size];
     state.punishmentLog.unshift({
       id: uid(), childId, typeLabel: p.label, icon: p.icon, size: p.size,
       durationMin, remainingMin: durationMin, status: "pending",
-      loggedTs: Date.now(), moment: currentMoment(), comment, edited: false, servedTs: null
+      loggedTs: Date.now(), moment: currentMoment(), comment: "", edited: false, servedTs: null
     });
     toast(`Punition enregistrée pour ${c.name} · ${fmtDur(durationMin)}`);
     commit();
@@ -767,5 +775,6 @@ document.getElementById("tabs").addEventListener("click", e => {
   const loaded = await Storage.init((remote) => { state = hydrate(remote); render(); });
   state = hydrate(loaded);
   render();
+  save(); // fixe les migrations appliquées
   setInterval(tickSession, 1000);
 })();
