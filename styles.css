@@ -237,6 +237,8 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .sortable .row { transition: background .15s; }
 
 /* Tableaux du Journal */
+.jhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.jhead h3 { margin: 0; }
 .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
 .data-tbl { border-collapse: collapse; width: 100%; font-size: .82rem; min-width: 520px; }
 .data-tbl th, .data-tbl td { padding: 7px 9px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }

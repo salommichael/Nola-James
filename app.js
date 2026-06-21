@@ -651,48 +651,48 @@ function dataTable(rows, cols, catCol) {
 function renderJournal() {
   const jr = journalRows(), rr = routineRows();
   view.innerHTML = `
-    <div style="text-align:center;margin-bottom:14px">
-      <button class="btn primary" data-act="export-xlsx">⬇️ Exporter en Excel (.xlsx)</button>
-      <p class="muted" style="margin-top:6px">Un fichier, deux feuilles : « Punitions &amp; récompenses » et « Routines ».</p>
-    </div>
     <div class="setting-block">
-      <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
+      <div class="jhead">
+        <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
+        <button class="btn primary small" data-act="export-xlsx" data-kind="journal" ${jr.length ? "" : "disabled"}>⬇️ Excel</button>
+      </div>
       ${dataTable(jr, ["Date", "Enfant", "Catégorie", "Détail", "Taille", "Montant", "Statut", "Par", "Fait le", "Commentaire"], "Catégorie")}
     </div>
     <div class="setting-block">
-      <h3>⭐ Historique des routines</h3>
+      <div class="jhead">
+        <h3>⭐ Historique des routines <span class="muted">(${rr.length})</span></h3>
+        <button class="btn primary small" data-act="export-xlsx" data-kind="routines" ${rr.length ? "" : "disabled"}>⬇️ Excel</button>
+      </div>
       ${dataTable(rr, ["Semaine", "Enfant", "Action", "Étoiles"], null)}
     </div>`;
 }
 
-async function exportJournalXlsx() {
-  const jr = journalRows().map(({ ts, ...keep }) => keep);
-  const rr = routineRows();
+async function exportJournalXlsx(kind) {
+  const isRoutines = kind === "routines";
+  const rows = isRoutines ? routineRows() : journalRows().map(({ ts, ...keep }) => keep);
+  const sheetName = isRoutines ? "Routines" : "Punitions & récompenses";
+  const fileBase = isRoutines ? "historique-routines" : "historique-punitions-recompenses";
+  if (!rows.length) { toast("Rien à exporter"); return; }
   try {
     const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jr), "Punitions & récompenses");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rr), "Routines");
-    XLSX.writeFile(wb, "journal-nola-james.xlsx");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sheetName);
+    XLSX.writeFile(wb, fileBase + ".xlsx");
     toast("Export Excel téléchargé ✓");
   } catch (e) {
     console.warn("SheetJS indisponible, repli CSV", e);
-    exportCsvFallback(jr, rr);
+    exportCsvSingle(rows, fileBase);
   }
 }
 
-function exportCsvFallback(jr, rr) {
+function exportCsvSingle(rows, fileBase) {
   const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const block = (title, rows) => {
-    if (!rows.length) return title + "\r\n(aucune donnée)\r\n";
-    const cols = Object.keys(rows[0]);
-    return title + "\r\n" + [cols.map(cell).join(";"), ...rows.map(r => cols.map(c => cell(r[c])).join(";"))].join("\r\n") + "\r\n";
-  };
-  const csv = "﻿" + block("PUNITIONS & RÉCOMPENSES", jr) + "\r\n" + block("ROUTINES", rr);
+  const cols = Object.keys(rows[0]);
+  const csv = "﻿" + [cols.map(cell).join(";"), ...rows.map(r => cols.map(c => cell(r[c])).join(";"))].join("\r\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "journal-nola-james.csv"; a.click();
+  a.href = url; a.download = fileBase + ".csv"; a.click();
   URL.revokeObjectURL(url);
   toast("Export CSV téléchargé (ouvrable dans Excel)");
 }
@@ -899,7 +899,7 @@ view.addEventListener("click", (e) => {
     openWeekConfirm(childId, won);
   }
   else if (a === "show-history") openHistory();
-  else if (a === "export-xlsx") exportJournalXlsx();
+  else if (a === "export-xlsx") exportJournalXlsx(el.dataset.kind);
   else if (a === "give-bonus") {
     const inp = document.getElementById("bonus-" + childId);
     const n = Math.round(+(inp && inp.value) || 0);
