@@ -72,7 +72,21 @@ class StorageEngine {
     this.urlDemo = new URLSearchParams(location.search).get("demo") !== null;
     this.demo = this.urlDemo || localStorage.getItem(LS_DEMO_FLAG) === "1";
     if (this.urlDemo) {
-      this.mode = "local";
+      this.demo = true;
+      this.mode = "local"; // les écritures restent locales, jamais le cloud
+      this.realConfigState = null;
+      // Lecture SEULE de la config réelle (si Firebase dispo) pour la calquer dans la démo.
+      if (ENABLE_SYNC && FIREBASE_CONFIG.projectId) {
+        try {
+          const appMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+          const fsMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+          const app = appMod.initializeApp(FIREBASE_CONFIG);
+          const db = fsMod.getFirestore(app);
+          const ref = fsMod.doc(db, "familles", CODE_FAMILLE);
+          const snap = await fsMod.getDoc(ref);
+          if (snap.exists() && snap.data().payload) this.realConfigState = JSON.parse(snap.data().payload);
+        } catch (e) { console.warn("Démo : lecture de la config réelle impossible, valeurs par défaut.", e); }
+      }
       this._setBadge();
       return this.demoLoad();
     }

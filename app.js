@@ -1313,28 +1313,73 @@ document.getElementById("demo-banner").addEventListener("click", e => {
   if (e.target.closest('[data-act="exit-demo"]')) { state = hydrate(Storage.exitDemo()); toast("Retour aux vraies données ✓"); render(); }
 });
 
+const DEMO_TTL = 12 * 3600000; // la démo se réinitialise toutes les 12 h
+
 (async function start() {
-  const loaded = await Storage.init((remote) => { state = hydrate(remote); render(); });
-  // Lien démo partagé sans données encore : on amorce un exemple sympa pour les copains.
-  state = (Storage.urlDemo && !loaded) ? sampleDemoState() : hydrate(loaded);
+  const loaded = await Storage.init((remote) => { if (!Storage.urlDemo) { state = hydrate(remote); render(); } });
+
+  if (Storage.urlDemo) {
+    const fresh = !loaded || !loaded._demoSeededAt || (Date.now() - loaded._demoSeededAt > DEMO_TTL);
+    state = fresh ? buildDemoSeed(Storage.realConfigState) : hydrate(loaded);
+    render();
+    if (fresh) save();
+    // contrôle périodique : reset à zéro toutes les 12 h même si la page reste ouverte
+    setInterval(() => {
+      if (state._demoSeededAt && Date.now() - state._demoSeededAt > DEMO_TTL) {
+        state = buildDemoSeed(Storage.realConfigState); save(); render(); toast("Démo réinitialisée 🔄");
+      }
+    }, 5 * 60000);
+    setInterval(tickSession, 1000);
+    return;
+  }
+
+  state = hydrate(loaded);
   render();
-  // Sécurité : on ne sauvegarde au démarrage que si on a vraiment chargé des données
-  // (ou en démo). Évite d'écraser la vraie base avec des valeurs par défaut si le
-  // chargement Firebase a échoué ponctuellement.
+  // Sécurité : ne sauvegarder au démarrage que si on a vraiment chargé des données
+  // (ou en démo locale), pour ne jamais écraser la vraie base avec des valeurs par défaut.
   if (loaded || Storage.demo) save();
   setInterval(tickSession, 1000);
 })();
 
-// Données d'exemple pour le lien démo (jamais liées à la vraie base)
-function sampleDemoState() {
+// Jeu de données démo : config calquée sur le réel, opérationnel aléatoire et réaliste.
+function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function buildDemoSeed(realState) {
+  const base = realState ? hydrate(realState) : structuredClone(DEFAULT_STATE);
   const s = structuredClone(DEFAULT_STATE);
-  s.children[0].stars = 7;
-  s.children[1].stars = 4;
-  const now = Date.now(), h = 3600000, d = 86400000;
-  s.punishmentLog = [
-    { id: uid(), childId: "nola", typeLabel: "Râler", icon: "😤", size: "S", durationMin: 15, remainingMin: 15, status: "pending", loggedTs: now - 2 * h, moment: "aprem", comment: "", edited: false, servedTs: null, by: "Papa" },
-    { id: uid(), childId: "james", typeLabel: "Violence physique (taper, pincer, pousser)", icon: "✋", size: "M", durationMin: 30, remainingMin: 0, status: "served", loggedTs: now - d, moment: "matin", comment: "a tapé son copain", edited: false, servedTs: now - d + 30 * 60000, by: "Maman" }
-  ];
-  s.log = [{ ts: now - 3 * h, type: "bonus", child: "Nola", childId: "nola", n: 2, reason: "a aidé à débarrasser la table", by: "Papa" }];
+  // CONFIG = celle du réel (ou défaut), soldes réinitialisés aléatoirement
+  s.children = base.children.map(c => ({ ...structuredClone(c), stars: rnd(2, 14) }));
+  s.punishments = structuredClone(base.punishments);
+  s.rewards = structuredClone(base.rewards);
+  s.parents = base.parents.slice();
+  s.week = {}; s.sessions = {}; s.punishmentLog = []; s.starHistory = {}; s.log = [];
+
+  const now = Date.now(), H = 3600000;
+  // punitions aléatoires
+  const nPun = rnd(2, 5);
+  for (let i = 0; i < nPun; i++) {
+    const p = pick(s.punishments), c = pick(s.children);
+    const status = pick(["pending", "pending", "served", "in_progress"]);
+    const dur = c.durations[p.size] || 15;
+    s.punishmentLog.push({
+      id: uid(), childId: c.id, typeLabel: p.label, icon: p.icon, size: p.size,
+      durationMin: dur, remainingMin: status === "served" ? 0 : status === "in_progress" ? Math.round(dur / 2) : dur,
+      status, loggedTs: now - rnd(1, 72) * H, moment: pick(["matin", "aprem", "soir"]),
+      comment: "", edited: false, servedTs: status === "served" ? now - rnd(1, 40) * H : null, by: pick(s.parents)
+    });
+  }
+  // historique de la semaine passée
+  const wk = weekKey(new Date(now - 7 * 86400000));
+  s.starHistory[wk] = {};
+  s.children.forEach(c => {
+    const byRoutine = {}; let total = 0;
+    c.routines.forEach(r => { if (Math.random() < 0.8) { const n = rnd(1, 7); byRoutine[r.id] = { label: r.label, count: n }; total += n; } });
+    s.starHistory[wk][c.id] = { total, ts: now - 7 * 86400000, byRoutine };
+  });
+  // une récompense échangée + un bonus
+  if (s.rewards.length) s.log.push({ ts: now - rnd(2, 30) * H, type: "récompense", child: pick(s.children).name, label: pick(s.rewards).label, n: -rnd(2, 8) });
+  s.log.push({ ts: now - rnd(2, 30) * H, type: "bonus", child: pick(s.children).name, n: rnd(1, 3), reason: pick(["a aidé à ranger", "a été adorable avec sa sœur", "a partagé ses jouets", "s'est habillé tout seul"]), by: pick(s.parents) });
+
+  s._demoSeededAt = now;
   return s;
 }
