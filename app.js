@@ -341,6 +341,7 @@ function render() {
   if (currentTab === "routines") renderRoutines();
   else if (currentTab === "punitions") renderPunitions();
   else if (currentTab === "recompenses") renderRecompenses();
+  else if (currentTab === "journal") renderJournal();
   else if (currentTab === "reglages") renderReglages();
 }
 
@@ -557,6 +558,117 @@ function renderRecompenses() {
     </div>${tiers}`;
 }
 
+// ---- JOURNAL (historisation + export) --------------------------------------
+const STATUS_TEXT = { pending: "En attente", in_progress: "En cours", served: "Fait", pardoned: "Pardonné" };
+function fmtDate(ts) { const d = new Date(ts); return String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0") + "." + d.getFullYear(); }
+
+// Lignes "Punitions & récompenses" (tout, trié du plus récent au plus ancien)
+function journalRows() {
+  const rows = [];
+  state.punishmentLog.forEach(e => rows.push({
+    ts: e.loggedTs,
+    Date: fmtLogged(e),
+    Enfant: child(e.childId) ? child(e.childId).name : (e.childId || ""),
+    "Catégorie": "Punition",
+    "Détail": e.typeLabel,
+    Taille: e.size,
+    Montant: fmtDur(e.durationMin),
+    Statut: STATUS_TEXT[e.status] || e.status,
+    Par: e.by || "",
+    "Fait le": e.servedTs ? fmtDate(e.servedTs) : "",
+    Commentaire: e.comment || ""
+  }));
+  (state.log || []).filter(l => l.type === "récompense").forEach(l => rows.push({
+    ts: l.ts,
+    Date: fmtDate(l.ts),
+    Enfant: l.child,
+    "Catégorie": "Récompense",
+    "Détail": l.label,
+    Taille: "",
+    Montant: l.n + " ⭐",
+    Statut: "Échangé",
+    Par: "",
+    "Fait le": "",
+    Commentaire: ""
+  }));
+  rows.sort((a, b) => b.ts - a.ts);
+  return rows;
+}
+
+// Lignes "Historique des routines" (par semaine, enfant, action)
+function routineRows() {
+  const rows = [];
+  Object.keys(state.starHistory || {}).sort().reverse().forEach(wk => {
+    const per = state.starHistory[wk];
+    state.children.forEach(c => {
+      const h = per[c.id];
+      if (!h) return;
+      Object.values(h.byRoutine || {}).forEach(b => rows.push({ Semaine: wk, Enfant: c.name, Action: b.label, "Étoiles": b.count }));
+      rows.push({ Semaine: wk, Enfant: c.name, Action: "— Total semaine —", "Étoiles": h.total });
+    });
+  });
+  return rows;
+}
+
+function dataTable(rows, cols, catCol) {
+  if (!rows.length) return `<p class="empty">Rien pour l'instant.</p>`;
+  const head = cols.map(c => `<th>${c}</th>`).join("");
+  const body = rows.map(r => {
+    const cls = catCol && r[catCol] ? " class=\"cat-" + normalize(r[catCol]) + "\"" : "";
+    return `<tr${cls}>${cols.map(c => `<td>${esc(r[c] == null ? "" : r[c])}</td>`).join("")}</tr>`;
+  }).join("");
+  return `<div class="tbl-wrap"><table class="data-tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function renderJournal() {
+  const jr = journalRows(), rr = routineRows();
+  view.innerHTML = `
+    <div style="text-align:center;margin-bottom:14px">
+      <button class="btn primary" data-act="export-xlsx">⬇️ Exporter en Excel (.xlsx)</button>
+      <p class="muted" style="margin-top:6px">Un fichier, deux feuilles : « Punitions &amp; récompenses » et « Routines ».</p>
+    </div>
+    <div class="setting-block">
+      <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
+      ${dataTable(jr, ["Date", "Enfant", "Catégorie", "Détail", "Taille", "Montant", "Statut", "Par", "Fait le", "Commentaire"], "Catégorie")}
+    </div>
+    <div class="setting-block">
+      <h3>⭐ Historique des routines</h3>
+      ${dataTable(rr, ["Semaine", "Enfant", "Action", "Étoiles"], null)}
+    </div>`;
+}
+
+async function exportJournalXlsx() {
+  const jr = journalRows().map(({ ts, ...keep }) => keep);
+  const rr = routineRows();
+  try {
+    const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jr), "Punitions & récompenses");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rr), "Routines");
+    XLSX.writeFile(wb, "journal-nola-james.xlsx");
+    toast("Export Excel téléchargé ✓");
+  } catch (e) {
+    console.warn("SheetJS indisponible, repli CSV", e);
+    exportCsvFallback(jr, rr);
+  }
+}
+
+function exportCsvFallback(jr, rr) {
+  const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const block = (title, rows) => {
+    if (!rows.length) return title + "\r\n(aucune donnée)\r\n";
+    const cols = Object.keys(rows[0]);
+    return title + "\r\n" + [cols.map(cell).join(";"), ...rows.map(r => cols.map(c => cell(r[c])).join(";"))].join("\r\n") + "\r\n";
+  };
+  const csv = "﻿" + block("PUNITIONS & RÉCOMPENSES", jr) + "\r\n" + block("ROUTINES", rr);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "journal-nola-james.csv"; a.click();
+  URL.revokeObjectURL(url);
+  toast("Export CSV téléchargé (ouvrable dans Excel)");
+}
+
 // ---- RÉGLAGES --------------------------------------------------------------
 function renderReglages() {
   const childrenBlocks = state.children.map(c => `
@@ -699,6 +811,7 @@ view.addEventListener("click", (e) => {
     openWeekConfirm(childId, won);
   }
   else if (a === "show-history") openHistory();
+  else if (a === "export-xlsx") exportJournalXlsx();
   // ---- Punitions : donner ----
   else if (a === "give") {
     const c = child(childId);

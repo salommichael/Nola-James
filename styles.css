@@ -228,6 +228,16 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .demo-banner { position: sticky; top: 0; z-index: 30; text-align: center; background: #efe1ff; color: #6b2fb0; font-size: .85rem; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .demo-banner.hidden { display: none; }
 
+/* Tableaux du Journal */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+.data-tbl { border-collapse: collapse; width: 100%; font-size: .82rem; min-width: 520px; }
+.data-tbl th, .data-tbl td { padding: 7px 9px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+.data-tbl th { background: var(--pink-soft); color: var(--pink-deep); position: sticky; top: 0; font-size: .76rem; text-transform: uppercase; letter-spacing: .3px; }
+.data-tbl tbody tr:nth-child(even) { background: #faf8fc; }
+.data-tbl td { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.data-tbl tr.cat-punition td:nth-child(3) { color: #c2691c; font-weight: 700; }
+.data-tbl tr.cat-recompense td:nth-child(3) { color: #2d7a45; font-weight: 700; }
+
 /* Recherche emoji */
 #emoji-search { width: 100%; padding: 12px 14px; border: 2px solid var(--pink); border-radius: 12px; font-size: 1rem; font-family: inherit; margin-bottom: 6px; }
 #emoji-search:focus { outline: none; border-color: var(--pink-deep); }
