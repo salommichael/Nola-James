@@ -736,6 +736,7 @@ function setupSortables() {
     makeSortable(cont, (ids) => {
       const byId = (arr) => arr.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
       if (key === "punishments") byId(state.punishments);
+      else if (key === "rewards") byId(state.rewards);
       else if (key.startsWith("routines:")) { const c = child(key.split(":")[1]); if (c) byId(c.routines); }
       commit();
     });
@@ -813,8 +814,10 @@ function renderReglages() {
   const rewBlock = `
     <div class="setting-block">
       <h3>🎁 Récompenses (catalogue)</h3>
+      <div class="sortable" data-sortable="rewards">
       ${state.rewards.map(r => `
-        <div class="row">
+        <div class="row" data-sort-id="${r.id}">
+          <span class="drag-handle" data-drag-handle title="Glisser pour réordonner">☰</span>
           <button class="ic-btn" data-act="pick-emoji" data-target="rew" data-id="${r.id}">${r.icon}</button>
           <input type="text" class="grow" value="${esc(r.label)}" data-act="edit-rew-label" data-id="${r.id}" />
           <label class="muted">⭐</label><input type="number" class="num" value="${r.cost}" data-act="edit-rew-cost" data-id="${r.id}" />
@@ -825,6 +828,7 @@ function renderReglages() {
           </select>
           <button class="btn danger small" data-act="del-rew" data-id="${r.id}">✕</button>
         </div>`).join("")}
+      </div>
       <button class="btn ghost small" data-act="add-rew" style="margin-top:8px">+ Ajouter une récompense</button>
     </div>`;
 
@@ -853,12 +857,20 @@ function renderReglages() {
 
   const dataBlock = `
     <div class="setting-block">
-      <h3>💾 Données</h3>
-      <p class="muted">Sauvegarde / restauration manuelle.</p>
-      <div class="row" style="border:none">
-        <button class="btn ghost small" data-act="export">⬇️ Exporter</button>
+      <h3>💾 Données & remise à zéro</h3>
+      <p class="muted">Sauvegarde complète, ou effacement <b>ciblé par catégorie</b> (chaque action demande confirmation).</p>
+      <div class="row" style="border:none;flex-wrap:wrap">
+        <button class="btn ghost small" data-act="export">⬇️ Exporter (sauvegarde)</button>
         <button class="btn ghost small" data-act="import">⬆️ Importer</button>
-        <button class="btn danger small" data-act="reset">🗑️ Tout réinitialiser</button>
+      </div>
+      <label class="muted" style="font-weight:700;display:block;margin-top:12px">Effacer une catégorie</label>
+      <div class="row" style="border:none;flex-wrap:wrap">
+        <button class="btn danger small" data-act="clear-punitions">🗑 Punitions (journal + sabliers)</button>
+        <button class="btn danger small" data-act="clear-stars">🗑 Étoiles &amp; récompenses (soldes, semaine, historique, échanges)</button>
+        <button class="btn danger small" data-act="reset-config">🗑 Configuration (enfants, routines, catalogues — garde les soldes)</button>
+      </div>
+      <div class="row" style="border:none;margin-top:8px">
+        <button class="btn danger small" data-act="reset">🗑 Tout réinitialiser (config + données)</button>
       </div>
     </div>`;
 
@@ -977,7 +989,29 @@ view.addEventListener("click", (e) => {
   else if (a === "pick-emoji") openEmojiPicker(el.dataset);
   else if (a === "export") doExport();
   else if (a === "import") doImport();
-  else if (a === "reset") { if (confirm("Tout réinitialiser ? Étoiles, journal et config effacés.")) { state = structuredClone(DEFAULT_STATE); commit(); } }
+  else if (a === "clear-punitions") {
+    if (confirm("Effacer TOUTES les punitions (journal + sabliers en cours) ?\nLes étoiles et la configuration ne sont pas touchées.")) {
+      state.punishmentLog = []; state.sessions = {}; commit(); toast("Punitions effacées");
+    }
+  }
+  else if (a === "clear-stars") {
+    if (confirm("Remettre à ZÉRO les étoiles ?\nSoldes, semaine en cours, historique des routines et échanges de récompenses.\nPunitions et configuration conservées.")) {
+      state.children.forEach(c => c.stars = 0);
+      state.week = {}; state.starHistory = {}; state.log = [];
+      commit(); toast("Étoiles & récompenses remises à zéro");
+    }
+  }
+  else if (a === "reset-config") {
+    if (confirm("Réinitialiser la CONFIGURATION aux valeurs d'origine ?\n(enfants, routines, durées, seuils, catalogues punitions & récompenses, parents)\nLes soldes d'étoiles sont conservés, mais tes personnalisations seront perdues.")) {
+      const base = structuredClone(DEFAULT_STATE);
+      state.punishments = base.punishments;
+      state.rewards = base.rewards;
+      state.parents = base.parents;
+      state.children = base.children.map(bc => { const cur = child(bc.id); return { ...bc, stars: cur ? cur.stars : 0 }; });
+      commit(); toast("Configuration réinitialisée");
+    }
+  }
+  else if (a === "reset") { if (confirm("TOUT réinitialiser (configuration + données) ? Étoiles, journal et config effacés.")) { state = structuredClone(DEFAULT_STATE); commit(); } }
 });
 
 // inputs (change)
