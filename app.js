@@ -79,8 +79,8 @@ const DEFAULT_STATE = {
 
 const TIER_INFO = {
   1: { title: "1 à 5 étoiles", sub: "petites récompenses" },
-  2: { title: "5 à 10 étoiles", sub: "moments spéciaux" },
-  3: { title: "10+ étoiles", sub: "grandes récompenses" }
+  2: { title: "6 à 10 étoiles", sub: "moments spéciaux" },
+  3: { title: "11+ étoiles", sub: "grandes récompenses" }
 };
 
 const MOMENTS = { matin: { label: "Matin", h: 9 }, aprem: { label: "Après-midi", h: 14 }, soir: { label: "Soir", h: 20 } };
@@ -823,8 +823,8 @@ function renderReglages() {
           <label class="muted">⭐</label><input type="number" class="num" value="${r.cost}" data-act="edit-rew-cost" data-id="${r.id}" />
           <select data-act="edit-rew-tier" data-id="${r.id}">
             <option value="1" ${r.tier === 1 ? "selected" : ""}>1-5</option>
-            <option value="2" ${r.tier === 2 ? "selected" : ""}>5-10</option>
-            <option value="3" ${r.tier === 3 ? "selected" : ""}>10+</option>
+            <option value="2" ${r.tier === 2 ? "selected" : ""}>6-10</option>
+            <option value="3" ${r.tier === 3 ? "selected" : ""}>11+</option>
           </select>
           <button class="btn danger small" data-act="del-rew" data-id="${r.id}">✕</button>
         </div>`).join("")}
