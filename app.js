@@ -326,12 +326,16 @@ function renderSessionPanel() {
   const entries = orderedPending(s.childId);
   const total = entries.reduce((a, e) => a + e.remainingMin, 0);
   const done = total <= 0;
-  const list = entries.length ? entries.map((e, i) => `
+  const list = entries.length ? entries.map((e, i) => {
+    const pct = Math.min(100, Math.max(0, (e.durationMin - e.remainingMin) / e.durationMin * 100));
+    return `
     <div class="sess-row ${i === 0 ? "current" : ""}" data-sess-entry="${e.id}">
+      <span class="sess-fill" data-fill style="width:${pct}%"></span>
       <span class="ic">${e.icon}</span>
       <span class="grow"><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span><br><span class="muted">reçue ${fmtLogged(e)}</span></span>
       <span class="rem" data-rem>${fmtDur(Math.ceil(e.remainingMin))}</span>
-    </div>`).join("") : `<p class="empty">Tout est purgé 🎉</p>`;
+    </div>`;
+  }).join("") : `<p class="empty">Tout est purgé 🎉</p>`;
   const controls = done
     ? `<button class="btn green" data-act="stop-session">✓ Terminer la séance</button>`
     : (s.running
@@ -371,7 +375,11 @@ function tickSession() {
     let rem = e.remainingMin;
     if (c2 > 0) { if (c2 >= rem) { c2 -= rem; rem = 0; } else { rem -= c2; c2 = 0; } }
     const el = document.querySelector(`[data-sess-entry="${e.id}"]`);
-    if (el) { const r = el.querySelector("[data-rem]"); if (r) r.textContent = fmtDur(Math.max(0, Math.ceil(rem))); if (rem <= 0) el.classList.add("served"); }
+    if (el) {
+      const r = el.querySelector("[data-rem]"); if (r) r.textContent = fmtDur(Math.max(0, Math.ceil(rem)));
+      const f = el.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100)) + "%";
+      if (rem <= 0) el.classList.add("served");
+    }
   }
   if (liveTotal <= 0 && s.running) { commitConsumed(); s.running = false; s.runningSince = null; save(); render(); }
 }
