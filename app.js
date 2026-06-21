@@ -286,7 +286,7 @@ function renderPunitions() {
 function pickerCards(c) {
   return state.punishments.map(p => {
     const dur = c.durations[p.size];
-    return `<button class="pun-pick" data-act="give" data-child="${c.id}" data-pun="${p.id}" style="border-color:${c.color === 'pink' ? 'var(--pink)' : 'var(--blue)'}">
+    return `<button class="pun-pick bg-${p.size}" data-act="give" data-child="${c.id}" data-pun="${p.id}">
       <div class="ic">${p.icon}</div>
       <div class="nm">${esc(p.label)}</div>
       <div style="margin-top:6px"><span class="size-tag size-${p.size}">${p.size}</span> <span class="muted">${fmtDur(dur)}</span></div>
