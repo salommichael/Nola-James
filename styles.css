@@ -228,6 +228,12 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .demo-banner { position: sticky; top: 0; z-index: 30; text-align: center; background: #efe1ff; color: #6b2fb0; font-size: .85rem; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .demo-banner.hidden { display: none; }
 
+/* Glisser-déposer */
+.drag-handle { cursor: grab; font-size: 1.2rem; color: #c4bdd0; padding: 0 6px; user-select: none; touch-action: none; line-height: 1; }
+.drag-handle:active { cursor: grabbing; }
+.row.dragging { opacity: .85; background: var(--pink-soft); border-radius: 12px; box-shadow: var(--shadow); }
+.sortable .row { transition: background .15s; }
+
 /* Tableaux du Journal */
 .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
 .data-tbl { border-collapse: collapse; width: 100%; font-size: .82rem; min-width: 520px; }

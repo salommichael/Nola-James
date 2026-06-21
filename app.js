@@ -386,7 +386,22 @@ function renderRoutines() {
             <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="validate" data-child="${c.id}">✅ Valider la semaine de ${esc(c.name)}</button>
           </div>
         </div>`;
-    }).join("");
+    }).join("") + renderBonusBlock();
+}
+
+function renderBonusBlock() {
+  return `<div class="child-card" style="border:2px dashed var(--gold)">
+    <div class="child-head"><span class="badge" style="background:#fff6d8;color:#b9870b">✨ Étoiles spontanées</span></div>
+    <p class="muted">Pour récompenser un bon geste sur le moment. Une raison sera demandée (obligatoire).</p>
+    ${state.children.map(c => `
+      <div class="row" style="border:none">
+        <span class="avatar" style="width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:1.2rem;background:${c.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'}">${c.emoji}</span>
+        <b style="min-width:54px">${esc(c.name)}</b>
+        <input type="number" class="num" id="bonus-${c.id}" value="1" />
+        <span class="muted">⭐</span>
+        <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'} small" data-act="give-bonus" data-child="${c.id}">Donner</button>
+      </div>`).join("")}
+  </div>`;
 }
 
 // ---- PUNITIONS -------------------------------------------------------------
@@ -591,6 +606,19 @@ function journalRows() {
     "Fait le": "",
     Commentaire: ""
   }));
+  (state.log || []).filter(l => l.type === "bonus").forEach(l => rows.push({
+    ts: l.ts,
+    Date: fmtDate(l.ts),
+    Enfant: l.child,
+    "Catégorie": "Étoile bonus",
+    "Détail": "Étoile spontanée",
+    Taille: "",
+    Montant: (l.n > 0 ? "+" : "") + l.n + " ⭐",
+    Statut: "",
+    Par: l.by || "",
+    "Fait le": "",
+    Commentaire: l.reason || ""
+  }));
   rows.sort((a, b) => b.ts - a.ts);
   return rows;
 }
@@ -669,6 +697,51 @@ function exportCsvFallback(jr, rr) {
   toast("Export CSV téléchargé (ouvrable dans Excel)");
 }
 
+// ---- Tri par glisser-déposer (souris + tactile) ----
+function makeSortable(container, onDrop) {
+  function moveTo(clientY) {
+    const drag = container.querySelector(".dragging");
+    if (!drag) return;
+    const others = [...container.querySelectorAll("[data-sort-id]")].filter(r => r !== drag);
+    let target = null;
+    for (const r of others) {
+      const rect = r.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) { target = r; break; }
+    }
+    if (target) container.insertBefore(drag, target);
+    else container.appendChild(drag);
+  }
+  container.querySelectorAll("[data-drag-handle]").forEach(h => {
+    h.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      const row = h.closest("[data-sort-id]");
+      if (!row) return;
+      row.classList.add("dragging");
+      const move = ev => moveTo(ev.clientY);
+      const up = () => {
+        document.removeEventListener("pointermove", move);
+        document.removeEventListener("pointerup", up);
+        row.classList.remove("dragging");
+        const ids = [...container.querySelectorAll("[data-sort-id]")].map(r => r.dataset.sortId);
+        onDrop(ids);
+      };
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", up);
+    });
+  });
+}
+function setupSortables() {
+  view.querySelectorAll("[data-sortable]").forEach(cont => {
+    const key = cont.dataset.sortable;
+    makeSortable(cont, (ids) => {
+      const byId = (arr) => arr.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      if (key === "punishments") byId(state.punishments);
+      else if (key.startsWith("routines:")) { const c = child(key.split(":")[1]); if (c) byId(c.routines); }
+      commit();
+    });
+  });
+}
+
 // ---- RÉGLAGES --------------------------------------------------------------
 function renderReglages() {
   const childrenBlocks = state.children.map(c => `
@@ -705,15 +778,16 @@ function renderReglages() {
         </div>
       </div>
       <label class="muted" style="font-weight:700">Actions de la routine</label>
-      ${c.routines.map((r, i) => `
-        <div class="row">
+      <div class="sortable" data-sortable="routines:${c.id}">
+      ${c.routines.map(r => `
+        <div class="row" data-sort-id="${r.id}">
+          <span class="drag-handle" data-drag-handle title="Glisser pour réordonner">☰</span>
           <button class="ic-btn" data-act="pick-emoji" data-target="routine" data-child="${c.id}" data-id="${r.id}">${r.icon}</button>
           <input type="text" class="grow" value="${esc(r.label)}" data-act="edit-routine" data-child="${c.id}" data-id="${r.id}" />
-          <button class="btn small ghost" data-act="move-routine" data-dir="-1" data-child="${c.id}" data-id="${r.id}" ${i === 0 ? "disabled" : ""} title="Monter">↑</button>
-          <button class="btn small ghost" data-act="move-routine" data-dir="1" data-child="${c.id}" data-id="${r.id}" ${i === c.routines.length - 1 ? "disabled" : ""} title="Descendre">↓</button>
           <button class="btn small ghost" data-act="dup-routine" data-child="${c.id}" data-id="${r.id}" title="Dupliquer">⧉</button>
           <button class="btn danger small" data-act="del-routine" data-child="${c.id}" data-id="${r.id}">✕</button>
         </div>`).join("")}
+      </div>
       <button class="btn ghost small" data-act="add-routine" data-child="${c.id}" style="margin-top:8px">+ Ajouter une action</button>
     </div>`).join("");
 
@@ -721,17 +795,18 @@ function renderReglages() {
     <div class="setting-block">
       <h3>⏳ Punitions (catalogue)</h3>
       <p class="muted">Taille S = mineur · M = modéré · L = grave. La durée dépend de l'enfant (réglée ci-dessus). Supprimer un type ici n'efface pas les punitions déjà loggées.</p>
-      ${state.punishments.map((p, i) => `
-        <div class="row">
+      <div class="sortable" data-sortable="punishments">
+      ${state.punishments.map(p => `
+        <div class="row" data-sort-id="${p.id}">
+          <span class="drag-handle" data-drag-handle title="Glisser pour réordonner">☰</span>
           <button class="ic-btn" data-act="pick-emoji" data-target="pun" data-id="${p.id}">${p.icon}</button>
           <input type="text" class="grow" value="${esc(p.label)}" data-act="edit-pun-label" data-id="${p.id}" />
           <select data-act="edit-pun-size" data-id="${p.id}">
             ${["S", "M", "L"].map(s => `<option value="${s}" ${p.size === s ? "selected" : ""}>${s}</option>`).join("")}
           </select>
-          <button class="btn small ghost" data-act="move-pun" data-dir="-1" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Monter">↑</button>
-          <button class="btn small ghost" data-act="move-pun" data-dir="1" data-id="${p.id}" ${i === state.punishments.length - 1 ? "disabled" : ""} title="Descendre">↓</button>
           <button class="btn danger small" data-act="del-pun" data-id="${p.id}">✕</button>
         </div>`).join("")}
+      </div>
       <button class="btn ghost small" data-act="add-pun" style="margin-top:8px">+ Ajouter une punition</button>
     </div>`;
 
@@ -788,6 +863,7 @@ function renderReglages() {
     </div>`;
 
   view.innerHTML = childrenBlocks + punBlock + rewBlock + parentsBlock + demoBlock + dataBlock;
+  setupSortables();
 }
 
 // ============================================================================
@@ -812,6 +888,12 @@ view.addEventListener("click", (e) => {
   }
   else if (a === "show-history") openHistory();
   else if (a === "export-xlsx") exportJournalXlsx();
+  else if (a === "give-bonus") {
+    const inp = document.getElementById("bonus-" + childId);
+    const n = Math.round(+(inp && inp.value) || 0);
+    if (!n) { toast("Indique un nombre d'étoiles"); return; }
+    openBonusModal(childId, n);
+  }
   // ---- Punitions : donner ----
   else if (a === "give") {
     const c = child(childId);
@@ -1051,6 +1133,26 @@ function openWeekConfirm(childId, won) {
     state.log.unshift({ ts: Date.now(), type: "semaine", child: c.name, n: won });
     if (state.week[wk]) delete state.week[wk][childId];
     closeModal(); toast(`+${won} ⭐ pour ${c.name} !`); commit();
+  };
+}
+
+// ---- Étoiles spontanées (raison obligatoire) ----
+function openBonusModal(childId, n) {
+  const c = child(childId);
+  const sign = n > 0 ? "+" : "";
+  openModal(`<h3>${sign}${n} ⭐ pour ${esc(c.name)}</h3>
+    <div class="field"><label>Raison (obligatoire)</label>
+      <textarea id="bonus-reason" rows="2" placeholder="Ex : a aidé son frère sans qu'on lui demande"></textarea>
+    </div>
+    <button class="btn green" id="bonus-ok" style="width:100%">Confirmer ${sign}${n} ⭐</button>`);
+  const ta = modalContent.querySelector("#bonus-reason");
+  setTimeout(() => ta.focus(), 50);
+  modalContent.querySelector("#bonus-ok").onclick = () => {
+    const reason = ta.value.trim();
+    if (!reason) { toast("La raison est obligatoire"); ta.focus(); return; }
+    c.stars = (c.stars || 0) + n;
+    state.log.unshift({ ts: Date.now(), type: "bonus", child: c.name, childId, n, reason, by: currentParent() });
+    closeModal(); toast(`${sign}${n} ⭐ pour ${c.name}`); commit();
   };
 }
 
