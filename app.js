@@ -69,8 +69,9 @@ const DEFAULT_STATE = {
     { id: "w20", tier: 3, cost: 11, icon: "🎨", label: "Activité créative" }
   ],
   week: {},            // { weekKey: { childId: { routineId: [7 bool] } } }
+  starHistory: {},     // { weekKey: { childId: { total, ts, byRoutine: { id: {label, count} } } } }
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
-  session: null,       // séance de purge en cours : { childId, running, runningSince }
+  sessions: {},        // sabliers en cours : { childId: { running, runningSince } }
   log: [],             // historique étoiles (validations + récompenses)
   migrations: {}       // marqueurs de migration de données déjà appliquées
 };
@@ -83,13 +84,124 @@ const TIER_INFO = {
 
 const MOMENTS = { matin: { label: "Matin", h: 9 }, aprem: { label: "Après-midi", h: 14 }, soir: { label: "Soir", h: 20 } };
 
-const EMOJI_BANK = {
-  "Étoiles & visages": ["⭐", "🌟", "✨", "🙂", "😀", "😍", "🤗", "😴", "😇", "🥰", "😎", "🤩"],
-  "Maison & école": ["🏠", "🛏️", "🧸", "🪥", "🚽", "👕", "🍽️", "🧹", "🎒", "🏫", "🎓", "📚", "📖", "✏️"],
-  "Comportement": ["🤝", "🤫", "👂", "🙅", "🔁", "📢", "😤", "✋", "🤥", "💔", "🖍️", "⚠️", "🗯️", "❤️", "🧠"],
-  "Activités": ["🎲", "🎵", "🎨", "⚽", "🚲", "🏊", "🧗", "🎡", "🎯", "🌳", "⛺", "🎬", "🍿", "🎮", "🛝"],
-  "Récompenses": ["🎁", "🍬", "🍭", "🍦", "🧁", "🍕", "🍝", "🥞", "👫", "👨‍👩‍👧", "🐶", "🦖", "🌈", "🏆"]
-};
+// Banque d'emojis avec mots-clés (pour la recherche). c = catégorie.
+const EMOJI_DATA = [
+  // Étoiles & visages
+  { e: "⭐", k: "etoile star recompense", c: "Étoiles & visages" },
+  { e: "🌟", k: "etoile brillante star", c: "Étoiles & visages" },
+  { e: "✨", k: "etincelles paillettes magie", c: "Étoiles & visages" },
+  { e: "🙂", k: "sourire content visage", c: "Étoiles & visages" },
+  { e: "😀", k: "sourire joie content visage", c: "Étoiles & visages" },
+  { e: "😍", k: "amour yeux coeur content", c: "Étoiles & visages" },
+  { e: "🥰", k: "amour calin coeur content", c: "Étoiles & visages" },
+  { e: "🤗", k: "calin bras content", c: "Étoiles & visages" },
+  { e: "😴", k: "dormir sommeil fatigue dodo", c: "Étoiles & visages" },
+  { e: "😇", k: "ange sage gentil", c: "Étoiles & visages" },
+  { e: "😎", k: "cool lunettes", c: "Étoiles & visages" },
+  { e: "🤩", k: "wow etoile admiratif", c: "Étoiles & visages" },
+  { e: "😢", k: "triste pleure larme", c: "Étoiles & visages" },
+  { e: "😡", k: "colere fache enerve rouge", c: "Étoiles & visages" },
+  { e: "😱", k: "peur cri choc", c: "Étoiles & visages" },
+  { e: "🥳", k: "fete anniversaire content", c: "Étoiles & visages" },
+  // Maison & école
+  { e: "🏠", k: "maison home", c: "Maison & école" },
+  { e: "🛏️", k: "lit dormir chambre dodo", c: "Maison & école" },
+  { e: "🧸", k: "ours nounours peluche jouet", c: "Maison & école" },
+  { e: "🪥", k: "brosse dents hygiene", c: "Maison & école" },
+  { e: "🛁", k: "bain douche propre", c: "Maison & école" },
+  { e: "🚽", k: "toilette pot pipi wc", c: "Maison & école" },
+  { e: "👕", k: "habit tshirt vetement habiller", c: "Maison & école" },
+  { e: "🧦", k: "chaussette habiller vetement", c: "Maison & école" },
+  { e: "🍽️", k: "assiette repas manger table", c: "Maison & école" },
+  { e: "🧹", k: "balai ranger menage nettoyer", c: "Maison & école" },
+  { e: "🧺", k: "linge panier ranger", c: "Maison & école" },
+  { e: "🎒", k: "sac ecole cartable", c: "Maison & école" },
+  { e: "🏫", k: "ecole creche batiment", c: "Maison & école" },
+  { e: "🎓", k: "diplome ecole reussite", c: "Maison & école" },
+  { e: "📚", k: "livres lecture histoire ecole", c: "Maison & école" },
+  { e: "📖", k: "livre histoire lecture", c: "Maison & école" },
+  { e: "✏️", k: "crayon ecrire dessiner ecole", c: "Maison & école" },
+  // Comportement
+  { e: "🤝", k: "partage main accord gentil", c: "Comportement" },
+  { e: "🤫", k: "silence chut calme", c: "Comportement" },
+  { e: "👂", k: "ecouter oreille obeir", c: "Comportement" },
+  { e: "🙅", k: "non refus interdit stop", c: "Comportement" },
+  { e: "🔁", k: "repeter consigne encore", c: "Comportement" },
+  { e: "📢", k: "crier hurler bruit fort", c: "Comportement" },
+  { e: "😤", k: "raler ronchon enerve souffle", c: "Comportement" },
+  { e: "✋", k: "taper main violence stop", c: "Comportement" },
+  { e: "🤥", k: "mensonge mentir nez", c: "Comportement" },
+  { e: "🙊", k: "avouer singe bouche secret", c: "Comportement" },
+  { e: "💔", k: "blesser coeur mots tristesse", c: "Comportement" },
+  { e: "🖍️", k: "dessiner mur crayon feutre", c: "Comportement" },
+  { e: "⚠️", k: "danger attention avertissement", c: "Comportement" },
+  { e: "🗯️", k: "insulte cri colere bulle", c: "Comportement" },
+  { e: "❤️", k: "coeur amour calin", c: "Comportement" },
+  { e: "🧠", k: "cerveau reflechir penser", c: "Comportement" },
+  { e: "⏳", k: "sablier temps attendre minuteur", c: "Comportement" },
+  // Activités & sport
+  { e: "🎲", k: "jeu de societe des jouer", c: "Activités & sport" },
+  { e: "🎵", k: "musique chanson note", c: "Activités & sport" },
+  { e: "🎨", k: "peinture dessin art creatif", c: "Activités & sport" },
+  { e: "⚽", k: "foot ballon sport jouer", c: "Activités & sport" },
+  { e: "🏀", k: "basket ballon sport", c: "Activités & sport" },
+  { e: "🚲", k: "velo bicyclette rouler", c: "Activités & sport" },
+  { e: "🛴", k: "trottinette rouler", c: "Activités & sport" },
+  { e: "🏊", k: "piscine nager natation eau", c: "Activités & sport" },
+  { e: "🧗", k: "escalade grimper accrobranche", c: "Activités & sport" },
+  { e: "🎡", k: "manege parc attraction fete", c: "Activités & sport" },
+  { e: "🎢", k: "montagnes russes parc fete", c: "Activités & sport" },
+  { e: "🎯", k: "cible objectif activite", c: "Activités & sport" },
+  { e: "🌳", k: "arbre parc nature dehors", c: "Activités & sport" },
+  { e: "⛺", k: "tente cabane camping", c: "Activités & sport" },
+  { e: "🎬", k: "film cinema clap", c: "Activités & sport" },
+  { e: "🍿", k: "popcorn film cinema soiree", c: "Activités & sport" },
+  { e: "🎮", k: "jeu video manette console", c: "Activités & sport" },
+  { e: "🛝", k: "toboggan parc jouer jeux", c: "Activités & sport" },
+  { e: "🎤", k: "micro chanter karaoke", c: "Activités & sport" },
+  { e: "💃", k: "danse danser", c: "Activités & sport" },
+  // Animaux
+  { e: "🐶", k: "chien chiot animal", c: "Animaux" },
+  { e: "🐱", k: "chat chaton animal", c: "Animaux" },
+  { e: "🐰", k: "lapin animal paques", c: "Animaux" },
+  { e: "🦄", k: "licorne magie", c: "Animaux" },
+  { e: "🦖", k: "dinosaure dino", c: "Animaux" },
+  { e: "🐢", k: "tortue animal lent", c: "Animaux" },
+  { e: "🐠", k: "poisson animal eau", c: "Animaux" },
+  { e: "🦋", k: "papillon animal", c: "Animaux" },
+  { e: "🐝", k: "abeille animal miel", c: "Animaux" },
+  { e: "🐧", k: "pingouin manchot animal", c: "Animaux" },
+  // Nourriture & récompenses
+  { e: "🎁", k: "cadeau surprise recompense", c: "Nourriture & récompenses" },
+  { e: "🍬", k: "bonbon sucrerie", c: "Nourriture & récompenses" },
+  { e: "🍭", k: "sucette bonbon", c: "Nourriture & récompenses" },
+  { e: "🍦", k: "glace dessert", c: "Nourriture & récompenses" },
+  { e: "🍫", k: "chocolat dessert", c: "Nourriture & récompenses" },
+  { e: "🧁", k: "cupcake gateau dessert", c: "Nourriture & récompenses" },
+  { e: "🍪", k: "cookie biscuit gateau", c: "Nourriture & récompenses" },
+  { e: "🍕", k: "pizza repas manger", c: "Nourriture & récompenses" },
+  { e: "🍝", k: "pates spaghetti repas", c: "Nourriture & récompenses" },
+  { e: "🥞", k: "pancake crepe dejeuner", c: "Nourriture & récompenses" },
+  { e: "🍓", k: "fraise fruit", c: "Nourriture & récompenses" },
+  { e: "🍎", k: "pomme fruit", c: "Nourriture & récompenses" },
+  { e: "🏆", k: "trophee gagne reussite", c: "Nourriture & récompenses" },
+  { e: "🥇", k: "medaille premier gagne", c: "Nourriture & récompenses" },
+  // Famille & nature
+  { e: "👫", k: "copain copine ami enfants", c: "Famille & nature" },
+  { e: "👨‍👩‍👧", k: "famille parents enfant", c: "Famille & nature" },
+  { e: "🧑‍🤝‍🧑", k: "amis ensemble", c: "Famille & nature" },
+  { e: "🌈", k: "arc en ciel couleur", c: "Famille & nature" },
+  { e: "☀️", k: "soleil beau jour", c: "Famille & nature" },
+  { e: "🌙", k: "lune nuit dodo soir", c: "Famille & nature" },
+  { e: "🌸", k: "fleur rose printemps", c: "Famille & nature" },
+  { e: "🚗", k: "voiture auto rouler", c: "Famille & nature" },
+  { e: "🎈", k: "ballon fete anniversaire", c: "Famille & nature" }
+];
+function emojiCategories() {
+  const out = {};
+  for (const it of EMOJI_DATA) (out[it.c] = out[it.c] || []).push(it.e);
+  return out;
+}
 
 // ============================================================================
 //  ÉTAT
@@ -109,9 +221,13 @@ function hydrate(loaded) {
   if (!loaded) return base;
   const s = { ...base, ...loaded };
   s.week = loaded.week || {};
+  s.starHistory = loaded.starHistory || {};
   s.log = loaded.log || [];
   s.punishmentLog = loaded.punishmentLog || [];
-  s.session = loaded.session || null;
+  s.sessions = loaded.sessions || (loaded.session && loaded.session.childId
+    ? { [loaded.session.childId]: { running: loaded.session.running, runningSince: loaded.session.runningSince } }
+    : {});
+  delete s.session;
   s.punishments = loaded.punishments || base.punishments;
   s.rewards = loaded.rewards || base.rewards;
   s.children = (loaded.children || base.children).map(c => ({
@@ -188,12 +304,12 @@ function fmtLogged(e) {
   return `${wd} ${dd}.${mm}${mo ? " · " + mo : ""}`;
 }
 
-// applique le temps écoulé de la séance aux punitions (plus ancienne d'abord)
-function commitConsumed() {
-  const s = state.session;
+// applique le temps écoulé du sablier d'un enfant aux punitions (plus ancienne d'abord)
+function commitConsumed(childId) {
+  const s = state.sessions[childId];
   if (!s) return;
   let consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
-  for (const e of orderedPending(s.childId)) {
+  for (const e of orderedPending(childId)) {
     if (consumed <= 0) break;
     if (consumed >= e.remainingMin) {
       consumed -= e.remainingMin;
@@ -233,7 +349,10 @@ function renderBalances() {
 
 // ---- ROUTINES --------------------------------------------------------------
 function renderRoutines() {
-  view.innerHTML = `<p class="muted" style="text-align:center">Semaine ${weekKey()} · clique une étoile quand l'enfant réussit</p>` +
+  view.innerHTML = `<div style="text-align:center;margin-bottom:10px">
+      <p class="muted" style="margin:0 0 8px">Semaine ${weekKey()} · clique une étoile quand l'enfant réussit</p>
+      <button class="btn ghost small" data-act="show-history">📜 Historique des étoiles</button>
+    </div>` +
     state.children.map(c => {
       const cells = weekCells(c.id);
       const rows = c.routines.map(r => {
@@ -262,18 +381,18 @@ function renderRoutines() {
 
 // ---- PUNITIONS -------------------------------------------------------------
 function renderPunitions() {
-  let html = state.session ? renderSessionPanel() : "";
+  let html = state.children.filter(c => state.sessions[c.id]).map(c => renderSessionPanel(c.id)).join("");
   html += state.children.map(c => {
     const total = pendingMin(c.id);
     const lvl = colorLevel(c);
-    const disabled = (total <= 0 || state.session) ? "disabled" : "";
+    const disabled = (total <= 0 || state.sessions[c.id]) ? "disabled" : "";
     return `
       <div class="child-card ${c.color}">
         <div class="child-head">
           <span class="badge">${c.emoji} ${esc(c.name)}</span>
           <span class="lvl-pill lvl-${lvl}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
         </div>
-        <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="launch" data-child="${c.id}" ${disabled} style="width:100%">▶️ Lancer la séance de purge</button>
+        <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="launch" data-child="${c.id}" ${disabled} style="width:100%">⏳ Lancer le sablier de ${esc(c.name)}</button>
         <h4 class="sec">Donner une punition</h4>
         <div class="pun-list">${pickerCards(c)}</div>
         <h4 class="sec">Journal de ${esc(c.name)}</h4>
@@ -295,7 +414,7 @@ function pickerCards(c) {
 }
 
 function statusBadge(e) {
-  const map = { pending: ["En attente", "st-pending"], in_progress: ["En cours", "st-prog"], served: ["Purgé", "st-served"], pardoned: ["Pardonné", "st-pard"] };
+  const map = { pending: ["En attente", "st-pending"], in_progress: ["En cours", "st-prog"], served: ["Fait ✓", "st-served"], pardoned: ["Pardonné", "st-pard"] };
   const [t, cls] = map[e.status] || ["?", ""];
   return `<span class="stbadge ${cls}">${t}</span>`;
 }
@@ -316,7 +435,7 @@ function journalRow(e) {
   const pending = e.status === "pending" || e.status === "in_progress";
   const actions = pending
     ? `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
-       <button class="btn small green" data-act="mark-served" data-id="${e.id}">Purgé</button>
+       <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
        <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`
     : `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
@@ -333,10 +452,10 @@ function journalRow(e) {
   </div>`;
 }
 
-function renderSessionPanel() {
-  const s = state.session;
-  const c = child(s.childId);
-  const entries = orderedPending(s.childId);
+function renderSessionPanel(childId) {
+  const s = state.sessions[childId];
+  const c = child(childId);
+  const entries = orderedPending(childId);
   const total = entries.reduce((a, e) => a + e.remainingMin, 0);
   const done = total <= 0;
   const list = entries.length ? entries.map((e, i) => {
@@ -348,15 +467,15 @@ function renderSessionPanel() {
       <span class="grow"><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span><br><span class="muted">reçue ${fmtLogged(e)}</span></span>
       <span class="rem" data-rem>${fmtDur(Math.ceil(e.remainingMin))}</span>
     </div>`;
-  }).join("") : `<p class="empty">Tout est purgé 🎉</p>`;
+  }).join("") : `<p class="empty">Tout est fait 🎉</p>`;
   const controls = done
-    ? `<button class="btn green" data-act="stop-session">✓ Terminer la séance</button>`
+    ? `<button class="btn green" data-act="stop-session" data-child="${childId}">✓ Terminer le sablier</button>`
     : (s.running
-      ? `<button class="btn ghost" data-act="pause-session">⏸ Pause</button> <button class="btn danger" data-act="stop-session">⏹ Arrêter</button>`
-      : `<button class="btn green" data-act="resume-session">▶️ Reprendre</button> <button class="btn danger" data-act="stop-session">⏹ Arrêter</button>`);
+      ? `<button class="btn ghost" data-act="pause-session" data-child="${childId}">⏸ Pause</button> <button class="btn danger" data-act="stop-session" data-child="${childId}">⏹ Arrêter</button>`
+      : `<button class="btn green" data-act="resume-session" data-child="${childId}">▶️ Reprendre</button> <button class="btn danger" data-act="stop-session" data-child="${childId}">⏹ Arrêter</button>`);
   const statusTxt = done ? "Terminé ✓" : (s.running ? "En cours…" : "En pause");
-  return `<div class="session-panel ${c.color}">
-    <h3>⏳ Séance de purge · ${c.emoji} ${esc(c.name)}</h3>
+  return `<div class="session-panel ${c.color}" data-sess-child="${childId}">
+    <h3>⏳ Sablier · ${c.emoji} ${esc(c.name)}</h3>
     <div class="sess-total" data-sess-total>${fmtClock(total)}</div>
     <div class="muted" style="text-align:center;margin-bottom:10px">${statusTxt}</div>
     <div class="sess-list">${list}</div>
@@ -365,36 +484,42 @@ function renderSessionPanel() {
 }
 
 function tickSession() {
-  const s = state.session;
-  if (!s) return;
-  const entries = orderedPending(s.childId);
-  const consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
+  const ids = Object.keys(state.sessions || {});
+  if (!ids.length) return;
+  let needRender = false;
+  for (const childId of ids) {
+    const s = state.sessions[childId];
+    const entries = orderedPending(childId);
+    const consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
 
-  // franchissement d'un palier → on enregistre (et on synchronise) une fois
-  if (consumed > 0 && entries.length && consumed >= entries[0].remainingMin) {
-    commitConsumed(); save();
-    if (orderedPending(s.childId).reduce((a, e) => a + e.remainingMin, 0) <= 0) { s.running = false; s.runningSince = null; }
-    render();
-    return;
-  }
-
-  // sinon : mise à jour visuelle uniquement
-  const stateTotal = entries.reduce((a, e) => a + e.remainingMin, 0);
-  const liveTotal = Math.max(0, stateTotal - consumed);
-  const totEl = document.querySelector("[data-sess-total]");
-  if (totEl) totEl.textContent = fmtClock(liveTotal);
-  let c2 = consumed;
-  for (const e of entries) {
-    let rem = e.remainingMin;
-    if (c2 > 0) { if (c2 >= rem) { c2 -= rem; rem = 0; } else { rem -= c2; c2 = 0; } }
-    const el = document.querySelector(`[data-sess-entry="${e.id}"]`);
-    if (el) {
-      const r = el.querySelector("[data-rem]"); if (r) r.textContent = fmtDur(Math.max(0, Math.ceil(rem)));
-      const f = el.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100)) + "%";
-      if (rem <= 0) el.classList.add("served");
+    // franchissement d'un palier → on enregistre (et on synchronise) une fois
+    if (consumed > 0 && entries.length && consumed >= entries[0].remainingMin) {
+      commitConsumed(childId); save();
+      if (orderedPending(childId).reduce((a, e) => a + e.remainingMin, 0) <= 0) { s.running = false; s.runningSince = null; }
+      needRender = true;
+      continue;
     }
+
+    const panel = document.querySelector(`[data-sess-child="${childId}"]`);
+    if (!panel) continue;
+    const stateTotal = entries.reduce((a, e) => a + e.remainingMin, 0);
+    const liveTotal = Math.max(0, stateTotal - consumed);
+    const totEl = panel.querySelector("[data-sess-total]");
+    if (totEl) totEl.textContent = fmtClock(liveTotal);
+    let c2 = consumed;
+    for (const e of entries) {
+      let rem = e.remainingMin;
+      if (c2 > 0) { if (c2 >= rem) { c2 -= rem; rem = 0; } else { rem -= c2; c2 = 0; } }
+      const el = panel.querySelector(`[data-sess-entry="${e.id}"]`);
+      if (el) {
+        const r = el.querySelector("[data-rem]"); if (r) r.textContent = fmtDur(Math.max(0, Math.ceil(rem)));
+        const f = el.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100)) + "%";
+        if (rem <= 0) el.classList.add("served");
+      }
+    }
+    if (liveTotal <= 0 && s.running) { commitConsumed(childId); s.running = false; s.runningSince = null; save(); needRender = true; }
   }
-  if (liveTotal <= 0 && s.running) { commitConsumed(); s.running = false; s.runningSince = null; save(); render(); }
+  if (needRender) render();
 }
 
 // ---- RÉCOMPENSES -----------------------------------------------------------
@@ -458,10 +583,13 @@ function renderReglages() {
         </div>
       </div>
       <label class="muted" style="font-weight:700">Actions de la routine</label>
-      ${c.routines.map(r => `
+      ${c.routines.map((r, i) => `
         <div class="row">
           <button class="ic-btn" data-act="pick-emoji" data-target="routine" data-child="${c.id}" data-id="${r.id}">${r.icon}</button>
           <input type="text" class="grow" value="${esc(r.label)}" data-act="edit-routine" data-child="${c.id}" data-id="${r.id}" />
+          <button class="btn small ghost" data-act="move-routine" data-dir="-1" data-child="${c.id}" data-id="${r.id}" ${i === 0 ? "disabled" : ""} title="Monter">↑</button>
+          <button class="btn small ghost" data-act="move-routine" data-dir="1" data-child="${c.id}" data-id="${r.id}" ${i === c.routines.length - 1 ? "disabled" : ""} title="Descendre">↓</button>
+          <button class="btn small ghost" data-act="dup-routine" data-child="${c.id}" data-id="${r.id}" title="Dupliquer">⧉</button>
           <button class="btn danger small" data-act="del-routine" data-child="${c.id}" data-id="${r.id}">✕</button>
         </div>`).join("")}
       <button class="btn ghost small" data-act="add-routine" data-child="${c.id}" style="margin-top:8px">+ Ajouter une action</button>
@@ -531,17 +659,11 @@ view.addEventListener("click", (e) => {
     commit();
   }
   else if (a === "validate") {
-    const c = child(childId);
     const won = weekTotal(childId);
     if (won === 0) { toast("Aucune étoile à valider cette semaine"); return; }
-    if (!confirm(`Valider la semaine de ${c.name} ?\n${won} ⭐ ajoutées à son solde (total : ${c.stars + won}).\nLe tableau de la semaine sera remis à zéro.`)) return;
-    c.stars += won;
-    state.log.unshift({ ts: Date.now(), type: "semaine", child: c.name, n: won });
-    const wk = weekKey();
-    if (state.week[wk]) delete state.week[wk][childId];
-    toast(`+${won} ⭐ pour ${c.name} !`);
-    commit();
+    openWeekConfirm(childId, won);
   }
+  else if (a === "show-history") openHistory();
   // ---- Punitions : donner ----
   else if (a === "give") {
     const c = child(childId);
@@ -570,14 +692,14 @@ view.addEventListener("click", (e) => {
   }
   // ---- Punitions : séance ----
   else if (a === "launch") {
-    if (state.session) { toast("Une séance est déjà en cours"); return; }
-    if (pendingMin(childId) <= 0) { toast("Rien à purger"); return; }
-    state.session = { childId, running: true, runningSince: Date.now() };
+    if (state.sessions[childId]) { toast("Le sablier tourne déjà"); return; }
+    if (pendingMin(childId) <= 0) { toast("Rien dans le sablier"); return; }
+    state.sessions[childId] = { running: true, runningSince: Date.now() };
     commit();
   }
-  else if (a === "pause-session") { commitConsumed(); state.session.running = false; state.session.runningSince = null; commit(); }
-  else if (a === "resume-session") { state.session.running = true; state.session.runningSince = Date.now(); commit(); }
-  else if (a === "stop-session") { commitConsumed(); state.session = null; commit(); }
+  else if (a === "pause-session") { commitConsumed(childId); state.sessions[childId].running = false; state.sessions[childId].runningSince = null; commit(); }
+  else if (a === "resume-session") { state.sessions[childId].running = true; state.sessions[childId].runningSince = Date.now(); commit(); }
+  else if (a === "stop-session") { commitConsumed(childId); delete state.sessions[childId]; commit(); }
   // ---- Récompenses ----
   else if (a === "select-child") { selectedChild = childId; render(); }
   else if (a === "redeem") {
@@ -593,6 +715,14 @@ view.addEventListener("click", (e) => {
   // ---- Réglages ----
   else if (a === "add-routine") { child(childId).routines.push({ id: uid(), icon: "⭐", label: "Nouvelle action" }); commit(); }
   else if (a === "del-routine") { const c = child(childId); c.routines = c.routines.filter(r => r.id !== id); commit(); }
+  else if (a === "move-routine") {
+    const c = child(childId), arr = c.routines, i = arr.findIndex(r => r.id === id), dir = +el.dataset.dir, j = i + dir;
+    if (i >= 0 && j >= 0 && j < arr.length) { [arr[i], arr[j]] = [arr[j], arr[i]]; commit(); }
+  }
+  else if (a === "dup-routine") {
+    const c = child(childId), i = c.routines.findIndex(r => r.id === id);
+    if (i >= 0) { const o = c.routines[i]; c.routines.splice(i + 1, 0, { id: uid(), icon: o.icon, label: o.label }); commit(); }
+  }
   else if (a === "add-pun") { state.punishments.push({ id: uid(), size: "S", icon: "⚠️", label: "Nouveau comportement" }); commit(); }
   else if (a === "del-pun") { state.punishments = state.punishments.filter(p => p.id !== id); commit(); }
   else if (a === "add-rew") { state.rewards.push({ id: uid(), tier: 1, cost: 3, icon: "🎁", label: "Nouvelle récompense" }); commit(); }
@@ -643,10 +773,30 @@ function segSelect(wrap, onChange) {
 }
 
 function openEmojiPicker(ds) {
-  const cats = Object.entries(EMOJI_BANK).map(([cat, list]) =>
-    `<div class="emoji-cat">${cat}</div><div class="emoji-grid">${list.map(em => `<button data-em="${em}">${em}</button>`).join("")}</div>`).join("");
-  openModal(`<h3>Choisir une icône</h3>${cats}`);
-  modalContent.querySelectorAll("[data-em]").forEach(b => b.onclick = () => { applyEmoji(ds, b.dataset.em); closeModal(); });
+  openModal(`<h3>Choisir une icône</h3>
+    <input id="emoji-search" type="text" placeholder="🔎 Rechercher (ex : chien, glace, ranger…)" autocomplete="off" />
+    <div id="emoji-results"></div>`);
+  const search = modalContent.querySelector("#emoji-search");
+  const results = modalContent.querySelector("#emoji-results");
+  const pick = (em) => { applyEmoji(ds, em); closeModal(); };
+  function draw(q) {
+    q = normalize(q.trim());
+    let html;
+    if (!q) {
+      html = Object.entries(emojiCategories()).map(([cat, list]) =>
+        `<div class="emoji-cat">${cat}</div><div class="emoji-grid">${list.map(em => `<button data-em="${em}">${em}</button>`).join("")}</div>`).join("");
+    } else {
+      const hits = EMOJI_DATA.filter(it => normalize(it.k + " " + it.c).includes(q));
+      html = hits.length
+        ? `<div class="emoji-grid">${hits.map(it => `<button data-em="${it.e}">${it.e}</button>`).join("")}</div>`
+        : `<p class="empty">Aucun emoji pour « ${esc(q)} »</p>`;
+    }
+    results.innerHTML = html;
+    results.querySelectorAll("[data-em]").forEach(b => b.onclick = () => pick(b.dataset.em));
+  }
+  search.addEventListener("input", () => draw(search.value));
+  draw("");
+  setTimeout(() => search.focus(), 50);
 }
 function applyEmoji(ds, em) {
   const { target, child: cid, id } = ds;
@@ -659,7 +809,7 @@ function applyEmoji(ds, em) {
 
 // ---- Pop-up "marquer purgé" (jour + moment) ----
 function openMarkServed(id) {
-  openModal(`<h3>Marquer comme purgé</h3>
+  openModal(`<h3>Marquer comme fait ✓</h3>
     <p class="muted">Quand cette punition a-t-elle été faite ?</p>
     <div class="field"><label>Jour</label>
       <div class="seg" id="ms-day"><button data-v="0" class="on">Aujourd'hui</button><button data-v="1">Hier</button><button data-v="2">Avant-hier</button></div>
@@ -674,7 +824,7 @@ function openMarkServed(id) {
     const off = +dayW.querySelector(".on").dataset.v, mom = momW.querySelector(".on").dataset.v;
     const ent = state.punishmentLog.find(x => x.id === id);
     ent.status = "served"; ent.remainingMin = 0; ent.servedTs = makeTs(todayStr(off), mom);
-    closeModal(); toast("Punition marquée purgée"); commit();
+    closeModal(); toast("Punition marquée faite ✓"); commit();
   };
 }
 
@@ -716,6 +866,45 @@ function openEditLog(id) {
   };
 }
 
+// ---- Validation de semaine (confirmation explicite) ----
+function openWeekConfirm(childId, won) {
+  const c = child(childId);
+  openModal(`<h3>Valider la semaine de ${esc(c.name)} ?</h3>
+    <p>On ajoute <b>${won} ⭐</b> à son solde (total : <b>${c.stars + won} ⭐</b>), puis le tableau de la semaine est remis à zéro.</p>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn ghost" id="wk-cancel" style="flex:1">Annuler</button>
+      <button class="btn green" id="wk-ok" style="flex:1.4">✅ Oui, valider ${won} ⭐</button>
+    </div>`);
+  modalContent.querySelector("#wk-cancel").onclick = closeModal;
+  modalContent.querySelector("#wk-ok").onclick = () => {
+    const wk = weekKey(), cells = weekCells(childId), byRoutine = {};
+    c.routines.forEach(r => { const n = (cells[r.id] || []).filter(Boolean).length; if (n) byRoutine[r.id] = { label: r.label, count: n }; });
+    state.starHistory[wk] = state.starHistory[wk] || {};
+    state.starHistory[wk][childId] = { total: won, ts: Date.now(), byRoutine };
+    c.stars += won;
+    state.log.unshift({ ts: Date.now(), type: "semaine", child: c.name, n: won });
+    if (state.week[wk]) delete state.week[wk][childId];
+    closeModal(); toast(`+${won} ⭐ pour ${c.name} !`); commit();
+  };
+}
+
+// ---- Historique des étoiles (par semaine, enfant, action) ----
+function openHistory() {
+  const weeks = Object.keys(state.starHistory).sort().reverse();
+  let body;
+  if (!weeks.length) body = `<p class="empty">Aucune semaine validée pour l'instant.</p>`;
+  else body = weeks.map(wk => {
+    const perChild = state.starHistory[wk];
+    const blocks = state.children.filter(c => perChild[c.id]).map(c => {
+      const h = perChild[c.id];
+      const lines = Object.values(h.byRoutine || {}).map(b => `<div class="hist-line"><span>${esc(b.label)}</span><b>⭐ ${b.count}</b></div>`).join("") || `<div class="muted">—</div>`;
+      return `<div class="hist-child ${c.color}"><div class="hist-head">${c.emoji} ${esc(c.name)} <span class="stars">⭐ ${h.total}</span></div>${lines}</div>`;
+    }).join("");
+    return `<div class="hist-week"><div class="hist-wk">📅 Semaine ${wk}</div>${blocks}</div>`;
+  }).join("");
+  openModal(`<h3>📜 Historique des étoiles</h3>${body}`);
+}
+
 // ============================================================================
 //  IMPORT / EXPORT
 // ============================================================================
@@ -753,6 +942,7 @@ function fmtClock(min) {
   return (h ? h + ":" : "") + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+function normalize(s) { return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 let toastTimer;
 function toast(msg) {
   document.querySelector(".toast")?.remove();
