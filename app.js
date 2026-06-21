@@ -73,6 +73,7 @@ const DEFAULT_STATE = {
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
   sessions: {},        // sabliers en cours : { childId: { running, runningSince } }
   log: [],             // historique étoiles (validations + récompenses)
+  parents: ["Papa", "Maman"], // profils (qui met la punition) ; le choix courant est local à l'appareil
   migrations: {}       // marqueurs de migration de données déjà appliquées
 };
 
@@ -211,6 +212,11 @@ let currentTab = "routines";
 let selectedChild = "nola";
 
 const child = (id) => state.children.find(c => c.id === id);
+function currentParent() {
+  const p = localStorage.getItem("rnj_parent");
+  if (p && state.parents.includes(p)) return p;
+  return state.parents[0] || "Parent";
+}
 function uid() { return "x" + Math.floor(performance.now() * 1000).toString(36) + Math.floor(performance.now() % 1000).toString(36); }
 function save() { Storage.save(state); }
 function commit() { save(); render(); }
@@ -230,6 +236,7 @@ function hydrate(loaded) {
   delete s.session;
   s.punishments = loaded.punishments || base.punishments;
   s.rewards = loaded.rewards || base.rewards;
+  s.parents = (loaded.parents && loaded.parents.length) ? loaded.parents : base.parents;
   s.children = (loaded.children || base.children).map(c => ({
     ...c,
     durations: { S: 15, M: 60, L: 240, ...(c.durations || {}) },
@@ -328,6 +335,8 @@ const view = document.getElementById("view");
 
 function render() {
   renderBalances();
+  updateWhoBadge();
+  updateDemoBanner();
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === currentTab));
   if (currentTab === "routines") renderRoutines();
   else if (currentTab === "punitions") renderPunitions();
@@ -441,11 +450,12 @@ function journalRow(e) {
     : `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`;
   const extra = e.status === "in_progress" ? ` · reste ${fmtDur(Math.ceil(e.remainingMin))}` : "";
+  const by = e.by ? ` · par ${esc(e.by)}` : "";
   return `<div class="jrow ${e.status}">
     <span class="ic">${e.icon}</span>
     <div class="grow">
       <div><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span> ${e.edited ? '<span class="edited">édité</span>' : ""}</div>
-      <div class="muted">${fmtDur(e.durationMin)}${extra} · reçue ${fmtLogged(e)}${e.comment ? " · 💬 " + esc(e.comment) : ""}</div>
+      <div class="muted">${fmtDur(e.durationMin)}${extra} · reçue ${fmtLogged(e)}${by}${e.comment ? " · 💬 " + esc(e.comment) : ""}</div>
     </div>
     ${statusBadge(e)}
     <div class="jactions">${actions}</div>
@@ -599,13 +609,15 @@ function renderReglages() {
     <div class="setting-block">
       <h3>⏳ Punitions (catalogue)</h3>
       <p class="muted">Taille S = mineur · M = modéré · L = grave. La durée dépend de l'enfant (réglée ci-dessus). Supprimer un type ici n'efface pas les punitions déjà loggées.</p>
-      ${state.punishments.map(p => `
+      ${state.punishments.map((p, i) => `
         <div class="row">
           <button class="ic-btn" data-act="pick-emoji" data-target="pun" data-id="${p.id}">${p.icon}</button>
           <input type="text" class="grow" value="${esc(p.label)}" data-act="edit-pun-label" data-id="${p.id}" />
           <select data-act="edit-pun-size" data-id="${p.id}">
             ${["S", "M", "L"].map(s => `<option value="${s}" ${p.size === s ? "selected" : ""}>${s}</option>`).join("")}
           </select>
+          <button class="btn small ghost" data-act="move-pun" data-dir="-1" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Monter">↑</button>
+          <button class="btn small ghost" data-act="move-pun" data-dir="1" data-id="${p.id}" ${i === state.punishments.length - 1 ? "disabled" : ""} title="Descendre">↓</button>
           <button class="btn danger small" data-act="del-pun" data-id="${p.id}">✕</button>
         </div>`).join("")}
       <button class="btn ghost small" data-act="add-pun" style="margin-top:8px">+ Ajouter une punition</button>
@@ -629,6 +641,29 @@ function renderReglages() {
       <button class="btn ghost small" data-act="add-rew" style="margin-top:8px">+ Ajouter une récompense</button>
     </div>`;
 
+  const parentsBlock = `
+    <div class="setting-block">
+      <h3>👤 Parents</h3>
+      <p class="muted">Sert à savoir qui a mis chaque punition. Chaque appareil choisit son profil en haut à gauche (👤). Sans mot de passe.</p>
+      ${state.parents.map((nm, i) => `
+        <div class="row">
+          <input type="text" class="grow" value="${esc(nm)}" data-act="edit-parent" data-idx="${i}" />
+          <button class="btn danger small" data-act="del-parent" data-idx="${i}" ${state.parents.length <= 1 ? "disabled" : ""}>✕</button>
+        </div>`).join("")}
+      <button class="btn ghost small" data-act="add-parent" style="margin-top:8px">+ Ajouter un parent</button>
+    </div>`;
+
+  const demoBlock = `
+    <div class="setting-block">
+      <h3>🧪 Mode démo</h3>
+      <p class="muted">Pour montrer l'app à des amis sans toucher aux vraies données de tes enfants. En démo, tout ce que tu fais reste dans un bac à sable local et n'est ni synchronisé ni enregistré dans la vraie base.</p>
+      <div class="row" style="border:none">
+        ${Storage.demo
+          ? `<button class="btn green" data-act="exit-demo">✓ Quitter le mode démo (revenir aux vraies données)</button>`
+          : `<button class="btn ghost" data-act="enter-demo">🧪 Activer le mode démo</button>`}
+      </div>
+    </div>`;
+
   const dataBlock = `
     <div class="setting-block">
       <h3>💾 Données</h3>
@@ -640,7 +675,7 @@ function renderReglages() {
       </div>
     </div>`;
 
-  view.innerHTML = childrenBlocks + punBlock + rewBlock + dataBlock;
+  view.innerHTML = childrenBlocks + punBlock + rewBlock + parentsBlock + demoBlock + dataBlock;
 }
 
 // ============================================================================
@@ -672,7 +707,8 @@ view.addEventListener("click", (e) => {
     state.punishmentLog.unshift({
       id: uid(), childId, typeLabel: p.label, icon: p.icon, size: p.size,
       durationMin, remainingMin: durationMin, status: "pending",
-      loggedTs: Date.now(), moment: currentMoment(), comment: "", edited: false, servedTs: null
+      loggedTs: Date.now(), moment: currentMoment(), comment: "", edited: false, servedTs: null,
+      by: currentParent()
     });
     toast(`Punition enregistrée pour ${c.name} · ${fmtDur(durationMin)}`);
     commit();
@@ -725,6 +761,22 @@ view.addEventListener("click", (e) => {
   }
   else if (a === "add-pun") { state.punishments.push({ id: uid(), size: "S", icon: "⚠️", label: "Nouveau comportement" }); commit(); }
   else if (a === "del-pun") { state.punishments = state.punishments.filter(p => p.id !== id); commit(); }
+  else if (a === "move-pun") {
+    const arr = state.punishments, i = arr.findIndex(p => p.id === id), j = i + (+el.dataset.dir);
+    if (i >= 0 && j >= 0 && j < arr.length) { [arr[i], arr[j]] = [arr[j], arr[i]]; commit(); }
+  }
+  else if (a === "add-parent") { state.parents.push("Parent"); commit(); }
+  else if (a === "del-parent") { state.parents.splice(+el.dataset.idx, 1); commit(); }
+  else if (a === "enter-demo") {
+    Storage.enterDemo(state);
+    toast("🧪 Mode démo activé");
+    render();
+  }
+  else if (a === "exit-demo") {
+    state = hydrate(Storage.exitDemo());
+    toast("Retour aux vraies données ✓");
+    render();
+  }
   else if (a === "add-rew") { state.rewards.push({ id: uid(), tier: 1, cost: 3, icon: "🎁", label: "Nouvelle récompense" }); commit(); }
   else if (a === "del-rew") { state.rewards = state.rewards.filter(r => r.id !== id); commit(); }
   else if (a === "pick-emoji") openEmojiPicker(el.dataset);
@@ -750,6 +802,7 @@ view.addEventListener("change", (e) => {
   else if (a === "edit-rew-label") state.rewards.find(r => r.id === id).label = el.value;
   else if (a === "edit-rew-cost") state.rewards.find(r => r.id === id).cost = +el.value || 0;
   else if (a === "edit-rew-tier") state.rewards.find(r => r.id === id).tier = +el.value;
+  else if (a === "edit-parent") { const old = state.parents[+el.dataset.idx]; state.parents[+el.dataset.idx] = el.value || "Parent"; if (localStorage.getItem("rnj_parent") === old) localStorage.setItem("rnj_parent", el.value || "Parent"); save(); updateWhoBadge(); return; }
   else return;
   save();
   if (a === "edit-child-name" || a === "edit-stars") renderBalances();
@@ -959,6 +1012,39 @@ function toast(msg) {
 document.getElementById("tabs").addEventListener("click", e => {
   const b = e.target.closest(".tab"); if (!b) return;
   currentTab = b.dataset.tab; render();
+});
+
+// ---- Profil parent (qui suis-je) ----
+function updateWhoBadge() {
+  const el = document.getElementById("who-badge");
+  if (el) el.textContent = "👤 " + currentParent();
+}
+function openParentPicker() {
+  const cur = currentParent();
+  openModal(`<h3>Qui utilise l'app ?</h3>
+    <p class="muted">Sert à estampiller les punitions que tu mets. Sans mot de passe, modifiable à tout moment.</p>
+    <div class="seg" id="who-seg">${state.parents.map(p => `<button data-v="${esc(p)}" class="${p === cur ? "on" : ""}">${esc(p)}</button>`).join("")}</div>`);
+  modalContent.querySelectorAll("#who-seg button").forEach(b => b.onclick = () => {
+    localStorage.setItem("rnj_parent", b.dataset.v);
+    closeModal(); updateWhoBadge(); render(); toast("Profil : " + b.dataset.v);
+  });
+}
+document.getElementById("who-badge").addEventListener("click", openParentPicker);
+
+// ---- Bannière mode démo ----
+function updateDemoBanner() {
+  const el = document.getElementById("demo-banner");
+  if (!el) return;
+  if (Storage.demo) {
+    el.classList.remove("hidden");
+    el.innerHTML = `🧪 <b>MODE DÉMO</b> — tes modifications ne touchent pas les vraies données. <button class="btn small green" data-act="exit-demo">Quitter</button>`;
+  } else {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+  }
+}
+document.getElementById("demo-banner").addEventListener("click", e => {
+  if (e.target.closest('[data-act="exit-demo"]')) { state = hydrate(Storage.exitDemo()); toast("Retour aux vraies données ✓"); render(); }
 });
 
 (async function start() {

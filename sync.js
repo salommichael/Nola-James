@@ -36,11 +36,14 @@ const FIREBASE_CONFIG = {
 const CODE_FAMILLE = "famille-devillard";
 
 const LS_KEY = "rnj_state_v1";
+const LS_DEMO = "rnj_demo_state";       // bac à sable démo (jamais synchronisé)
+const LS_DEMO_FLAG = "rnj_demo_on";
 
 // ----------------------------------------------------------------------------
 class StorageEngine {
   constructor() {
     this.mode = "local";
+    this.demo = false;
     this.onRemote = null;
     this._db = null;
     this._docRef = null;
@@ -54,18 +57,21 @@ class StorageEngine {
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   }
-
   saveLocal(state) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  demoLoad() {
+    try { const r = localStorage.getItem(LS_DEMO); return r ? JSON.parse(r) : null; } catch (e) { return null; }
   }
 
   // Appelée par app.js au démarrage. onRemote(state) reçoit les mises à jour distantes.
   async init(onRemote) {
     this.onRemote = onRemote;
+    this.demo = localStorage.getItem(LS_DEMO_FLAG) === "1";
     if (!ENABLE_SYNC || !FIREBASE_CONFIG.projectId) {
       this.mode = "local";
-      this._badge("local", "💾 Local (cet appareil)");
-      return this.loadLocal();
+      this._setBadge();
+      return this.demo ? this.demoLoad() : this.loadLocal();
     }
     try {
       const appMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
@@ -75,10 +81,11 @@ class StorageEngine {
       this._fs = fsMod;
       this._docRef = fsMod.doc(this._db, "familles", CODE_FAMILLE);
       this.mode = "cloud";
-      this._badge("cloud", "☁️ Synchro activée");
+      this._setBadge();
 
-      // Écoute temps réel
+      // Écoute temps réel (ignorée en mode démo)
       fsMod.onSnapshot(this._docRef, (snap) => {
+        if (this.demo) return;
         if (this._suppressNext) { this._suppressNext = false; return; }
         if (snap.exists() && this.onRemote) {
           const data = snap.data();
@@ -86,20 +93,24 @@ class StorageEngine {
         }
       });
 
-      // Charge l'état initial : distant si présent, sinon local
+      if (this.demo) return this.demoLoad();
       const snap = await fsMod.getDoc(this._docRef);
       if (snap.exists() && snap.data().payload) return JSON.parse(snap.data().payload);
       return this.loadLocal();
     } catch (e) {
       console.warn("Firestore indisponible, repli en local.", e);
       this.mode = "local";
-      this._badge("local", "💾 Local (synchro indispo)");
-      return this.loadLocal();
+      this._setBadge();
+      return this.demo ? this.demoLoad() : this.loadLocal();
     }
   }
 
-  // Sauvegarde (toujours en local + dans le cloud si activé, avec anti-rebond)
+  // Sauvegarde. En démo : uniquement dans le bac à sable local, jamais le cloud.
   save(state) {
+    if (this.demo) {
+      try { localStorage.setItem(LS_DEMO, JSON.stringify(state)); } catch (e) {}
+      return;
+    }
     this.saveLocal(state);
     if (this.mode !== "cloud") return;
     clearTimeout(this._saveTimer);
@@ -110,6 +121,27 @@ class StorageEngine {
     }, 600);
   }
 
+  // Bascule en mode démo : seed = copie de l'état réel courant.
+  enterDemo(seedState) {
+    this.demo = true;
+    localStorage.setItem(LS_DEMO_FLAG, "1");
+    try { localStorage.setItem(LS_DEMO, JSON.stringify(seedState)); } catch (e) {}
+    this._setBadge();
+  }
+  // Quitte la démo et rend l'état réel (dernier cache local synchronisé).
+  exitDemo() {
+    this.demo = false;
+    localStorage.removeItem(LS_DEMO_FLAG);
+    localStorage.removeItem(LS_DEMO);
+    this._setBadge();
+    return this.loadLocal();
+  }
+
+  _setBadge() {
+    if (this.demo) return this._badge("demo", "🧪 Mode démo");
+    if (this.mode === "cloud") return this._badge("cloud", "☁️ Synchro activée");
+    this._badge("local", "💾 Local (cet appareil)");
+  }
   _badge(cls, text) {
     const el = document.getElementById("sync-badge");
     if (el) { el.className = "sync-badge " + cls; el.textContent = text; }

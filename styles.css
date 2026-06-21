@@ -219,6 +219,15 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .seg button.on { background: var(--pink-deep); color: #fff; border-color: var(--pink-deep); }
 .field textarea { width: 100%; padding: 10px; border: 2px solid #eee; border-radius: 10px; font-family: inherit; font-size: .95rem; resize: vertical; }
 
+/* Badge profil parent (haut gauche) */
+.who-badge { position: fixed; top: 8px; left: 8px; z-index: 50; border: none; cursor: pointer; font-size: .68rem; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: #ece7f5; color: var(--ink); box-shadow: var(--shadow); }
+.who-badge:active { transform: scale(.95); }
+.sync-badge.demo { background: #efe1ff; color: #7a3ec2; }
+
+/* Bannière mode démo */
+.demo-banner { position: sticky; top: 0; z-index: 30; text-align: center; background: #efe1ff; color: #6b2fb0; font-size: .85rem; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.demo-banner.hidden { display: none; }
+
 /* Recherche emoji */
 #emoji-search { width: 100%; padding: 12px 14px; border: 2px solid var(--pink); border-radius: 12px; font-size: 1rem; font-family: inherit; margin-bottom: 6px; }
 #emoji-search:focus { outline: none; border-color: var(--pink-deep); }
