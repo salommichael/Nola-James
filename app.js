@@ -847,11 +847,17 @@ function renderReglages() {
   const demoBlock = `
     <div class="setting-block">
       <h3>🧪 Mode démo</h3>
-      <p class="muted">Pour montrer l'app à des amis sans toucher aux vraies données de tes enfants. En démo, tout ce que tu fais reste dans un bac à sable local et n'est ni synchronisé ni enregistré dans la vraie base.</p>
+      <p class="muted">Pour montrer l'app sans toucher aux vraies données. Tout reste dans un bac à sable local, non synchronisé.</p>
       <div class="row" style="border:none">
         ${Storage.demo
           ? `<button class="btn green" data-act="exit-demo">✓ Quitter le mode démo (revenir aux vraies données)</button>`
-          : `<button class="btn ghost" data-act="enter-demo">🧪 Activer le mode démo</button>`}
+          : `<button class="btn ghost" data-act="enter-demo">🧪 Activer le mode démo (sur cet appareil)</button>`}
+      </div>
+      <label class="muted" style="font-weight:700;display:block;margin-top:12px">Envoyer une démo à des copains</label>
+      <p class="muted">Ce lien ouvre une démo isolée avec des données d'exemple. Tes copains peuvent tout tester : <b>ça ne touche jamais la base de tes enfants</b> (aucune connexion à la vraie base).</p>
+      <div class="row" style="border:none;flex-wrap:wrap">
+        <button class="btn blue small" data-act="copy-demo-link">🔗 Copier le lien démo</button>
+        <code class="muted" style="word-break:break-all">${esc(location.origin + location.pathname)}?demo=1</code>
       </div>
     </div>`;
 
@@ -983,6 +989,12 @@ view.addEventListener("click", (e) => {
     state = hydrate(Storage.exitDemo());
     toast("Retour aux vraies données ✓");
     render();
+  }
+  else if (a === "copy-demo-link") {
+    const url = location.origin + location.pathname + "?demo=1";
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => toast("Lien démo copié ✓")).catch(() => prompt("Copie ce lien :", url));
+    } else { prompt("Copie ce lien :", url); }
   }
   else if (a === "add-rew") { state.rewards.push({ id: uid(), tier: 1, cost: 3, icon: "🎁", label: "Nouvelle récompense" }); commit(); }
   else if (a === "del-rew") { state.rewards = state.rewards.filter(r => r.id !== id); commit(); }
@@ -1287,7 +1299,9 @@ function updateDemoBanner() {
   if (!el) return;
   if (Storage.demo) {
     el.classList.remove("hidden");
-    el.innerHTML = `🧪 Démo <button data-act="exit-demo" title="Quitter le mode démo">✕</button>`;
+    el.innerHTML = Storage.urlDemo
+      ? `🧪 Démo (test)`
+      : `🧪 Démo <button data-act="exit-demo" title="Quitter le mode démo">✕</button>`;
     if (sync) sync.style.display = "none"; // évite le doublon en haut à droite
   } else {
     el.classList.add("hidden");
@@ -1301,8 +1315,26 @@ document.getElementById("demo-banner").addEventListener("click", e => {
 
 (async function start() {
   const loaded = await Storage.init((remote) => { state = hydrate(remote); render(); });
-  state = hydrate(loaded);
+  // Lien démo partagé sans données encore : on amorce un exemple sympa pour les copains.
+  state = (Storage.urlDemo && !loaded) ? sampleDemoState() : hydrate(loaded);
   render();
-  save(); // fixe les migrations appliquées
+  // Sécurité : on ne sauvegarde au démarrage que si on a vraiment chargé des données
+  // (ou en démo). Évite d'écraser la vraie base avec des valeurs par défaut si le
+  // chargement Firebase a échoué ponctuellement.
+  if (loaded || Storage.demo) save();
   setInterval(tickSession, 1000);
 })();
+
+// Données d'exemple pour le lien démo (jamais liées à la vraie base)
+function sampleDemoState() {
+  const s = structuredClone(DEFAULT_STATE);
+  s.children[0].stars = 7;
+  s.children[1].stars = 4;
+  const now = Date.now(), h = 3600000, d = 86400000;
+  s.punishmentLog = [
+    { id: uid(), childId: "nola", typeLabel: "Râler", icon: "😤", size: "S", durationMin: 15, remainingMin: 15, status: "pending", loggedTs: now - 2 * h, moment: "aprem", comment: "", edited: false, servedTs: null, by: "Papa" },
+    { id: uid(), childId: "james", typeLabel: "Violence physique (taper, pincer, pousser)", icon: "✋", size: "M", durationMin: 30, remainingMin: 0, status: "served", loggedTs: now - d, moment: "matin", comment: "a tapé son copain", edited: false, servedTs: now - d + 30 * 60000, by: "Maman" }
+  ];
+  s.log = [{ ts: now - 3 * h, type: "bonus", child: "Nola", childId: "nola", n: 2, reason: "a aidé à débarrasser la table", by: "Papa" }];
+  return s;
+}

@@ -44,6 +44,7 @@ class StorageEngine {
   constructor() {
     this.mode = "local";
     this.demo = false;
+    this.urlDemo = false;
     this.onRemote = null;
     this._db = null;
     this._docRef = null;
@@ -67,7 +68,14 @@ class StorageEngine {
   // Appelée par app.js au démarrage. onRemote(state) reçoit les mises à jour distantes.
   async init(onRemote) {
     this.onRemote = onRemote;
-    this.demo = localStorage.getItem(LS_DEMO_FLAG) === "1";
+    // Lien démo partagé (?demo) : isolement total, aucune connexion à la vraie base.
+    this.urlDemo = new URLSearchParams(location.search).get("demo") !== null;
+    this.demo = this.urlDemo || localStorage.getItem(LS_DEMO_FLAG) === "1";
+    if (this.urlDemo) {
+      this.mode = "local";
+      this._setBadge();
+      return this.demoLoad();
+    }
     if (!ENABLE_SYNC || !FIREBASE_CONFIG.projectId) {
       this.mode = "local";
       this._setBadge();
