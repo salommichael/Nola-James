@@ -69,7 +69,7 @@ class StorageEngine {
   async init(onRemote) {
     this.onRemote = onRemote;
     // Lien démo partagé (?demo) : isolement total, aucune connexion à la vraie base.
-    this.urlDemo = new URLSearchParams(location.search).get("demo") !== null;
+    this.urlDemo = /\/demo\/?$/.test(location.pathname) || new URLSearchParams(location.search).get("demo") !== null;
     this.demo = this.urlDemo || localStorage.getItem(LS_DEMO_FLAG) === "1";
     if (this.urlDemo) {
       this.demo = true;

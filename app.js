@@ -217,6 +217,11 @@ function currentParent() {
   if (p && state.parents.includes(p)) return p;
   return state.parents[0] || "Parent";
 }
+function demoLink() {
+  let p = location.pathname.replace(/\/demo\/?$/, "/");
+  if (!p.endsWith("/")) p = p.replace(/[^/]*$/, "");
+  return location.origin + p + "demo";
+}
 function uid() { return "x" + Math.floor(performance.now() * 1000).toString(36) + Math.floor(performance.now() % 1000).toString(36); }
 function save() { Storage.save(state); }
 function commit() { save(); render(); }
@@ -857,7 +862,7 @@ function renderReglages() {
       <p class="muted">Ce lien ouvre une démo isolée avec des données d'exemple. Tes copains peuvent tout tester : <b>ça ne touche jamais la base de tes enfants</b> (aucune connexion à la vraie base).</p>
       <div class="row" style="border:none;flex-wrap:wrap">
         <button class="btn blue small" data-act="copy-demo-link">🔗 Copier le lien démo</button>
-        <code class="muted" style="word-break:break-all">${esc(location.origin + location.pathname)}?demo=1</code>
+        <code class="muted" style="word-break:break-all">${esc(demoLink())}</code>
       </div>
     </div>`;
 
@@ -991,7 +996,7 @@ view.addEventListener("click", (e) => {
     render();
   }
   else if (a === "copy-demo-link") {
-    const url = location.origin + location.pathname + "?demo=1";
+    const url = demoLink();
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => toast("Lien démo copié ✓")).catch(() => prompt("Copie ce lien :", url));
     } else { prompt("Copie ce lien :", url); }
