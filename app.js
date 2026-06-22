@@ -1376,6 +1376,17 @@ function buildDemoSeed(realState) {
     c.routines.forEach(r => { if (Math.random() < 0.8) { const n = rnd(1, 7); byRoutine[r.id] = { label: r.label, count: n }; total += n; } });
     s.starHistory[wk][c.id] = { total, ts: now - 7 * 86400000, byRoutine };
   });
+  // étoiles aléatoires dans la grille de la semaine EN COURS (jusqu'au jour actuel)
+  const cwk = weekKey();
+  const todayIdx = (new Date().getDay() + 6) % 7; // lundi = 0
+  s.week[cwk] = {};
+  s.children.forEach(c => {
+    s.week[cwk][c.id] = {};
+    c.routines.forEach(r => {
+      s.week[cwk][c.id][r.id] = Array.from({ length: 7 }, (_, d) => d <= todayIdx && Math.random() < 0.6);
+    });
+  });
+
   // une récompense échangée + un bonus
   if (s.rewards.length) s.log.push({ ts: now - rnd(2, 30) * H, type: "récompense", child: pick(s.children).name, label: pick(s.rewards).label, n: -rnd(2, 8) });
   s.log.push({ ts: now - rnd(2, 30) * H, type: "bonus", child: pick(s.children).name, n: rnd(1, 3), reason: pick(["a aidé à ranger", "a été adorable avec sa sœur", "a partagé ses jouets", "s'est habillé tout seul"]), by: pick(s.parents) });
