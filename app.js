@@ -68,7 +68,8 @@ const DEFAULT_STATE = {
     { id: "w19", tier: 3, cost: 13, icon: "🛌", label: "Soirée pyjama" },
     { id: "w20", tier: 3, cost: 11, icon: "🎨", label: "Activité créative" }
   ],
-  week: {},            // { weekKey: { childId: { routineId: [7 bool] } } }
+  week: {},            // { weekKey: { childId: { routineId: [7 bool] } } } — étoiles cochées
+  weekValidated: {},   // { weekKey: { childId: { routineId: [7 bool] } } } — étoiles déjà mises en banque (par jour)
   starHistory: {},     // { weekKey: { childId: { total, ts, byRoutine: { id: {label, count} } } } }
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
   sessions: {},        // sabliers en cours : { childId: { running, runningSince } }
@@ -222,7 +223,8 @@ function demoLink() {
   if (!p.endsWith("/")) p = p.replace(/[^/]*$/, "");
   return location.origin + p + "demo";
 }
-function uid() { return "x" + Math.floor(performance.now() * 1000).toString(36) + Math.floor(performance.now() % 1000).toString(36); }
+let _uidSeq = 0;
+function uid() { return "x" + (_uidSeq++).toString(36) + Date.now().toString(36); }
 function save() { Storage.save(state); }
 function commit() { save(); render(); }
 
@@ -232,6 +234,7 @@ function hydrate(loaded) {
   if (!loaded) return base;
   const s = { ...base, ...loaded };
   s.week = loaded.week || {};
+  s.weekValidated = loaded.weekValidated || {};
   s.starHistory = loaded.starHistory || {};
   s.log = loaded.log || [];
   s.punishmentLog = loaded.punishmentLog || [];
@@ -278,10 +281,22 @@ function weekCells(childId) {
   state.week[wk][childId] = state.week[wk][childId] || {};
   return state.week[wk][childId];
 }
-function weekTotal(childId) {
+function weekValCells(childId) {
+  const wk = weekKey();
+  state.weekValidated[wk] = state.weekValidated[wk] || {};
+  state.weekValidated[wk][childId] = state.weekValidated[wk][childId] || {};
+  return state.weekValidated[wk][childId];
+}
+function weekTotal(childId) { // étoiles cochées
   const cells = weekCells(childId);
   let n = 0;
   for (const k in cells) n += cells[k].filter(Boolean).length;
+  return n;
+}
+function weekValidatedTotal(childId) { // étoiles déjà mises en banque
+  const v = weekValCells(childId);
+  let n = 0;
+  for (const k in v) n += v[k].filter(Boolean).length;
   return n;
 }
 
@@ -316,12 +331,22 @@ function fmtLogged(e) {
   return `${wd} ${dd}.${mm}${mo ? " · " + mo : ""}`;
 }
 
-// applique le temps écoulé du sablier d'un enfant aux punitions (plus ancienne d'abord)
+// Entrées que le sablier d'un enfant fait couler : soit une punition précise (onlyId), soit tout le stock (plus ancienne d'abord)
+function sessionEntries(childId) {
+  const s = state.sessions[childId];
+  if (s && s.onlyId) {
+    const e = state.punishmentLog.find(x => x.id === s.onlyId && (x.status === "pending" || x.status === "in_progress"));
+    return e ? [e] : [];
+  }
+  return orderedPending(childId);
+}
+
+// applique le temps écoulé du sablier d'un enfant aux punitions
 function commitConsumed(childId) {
   const s = state.sessions[childId];
   if (!s) return;
   let consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
-  for (const e of orderedPending(childId)) {
+  for (const e of sessionEntries(childId)) {
     if (consumed <= 0) break;
     if (consumed >= e.remainingMin) {
       consumed -= e.remainingMin;
@@ -370,13 +395,18 @@ function renderRoutines() {
     </div>` +
     state.children.map(c => {
       const cells = weekCells(c.id);
+      const vcells = weekValCells(c.id);
       const rows = c.routines.map(r => {
         const arr = cells[r.id] || (cells[r.id] = [false, false, false, false, false, false, false]);
+        const varr = vcells[r.id] || [];
         const stars = DAYS.map((_, d) =>
-          `<td><button class="star-cell ${arr[d] ? 'on' : ''}" data-act="star" data-child="${c.id}" data-routine="${r.id}" data-day="${d}">★</button></td>`
+          `<td><button class="star-cell ${arr[d] ? 'on' : ''} ${varr[d] ? 'banked' : ''}" data-act="star" data-child="${c.id}" data-routine="${r.id}" data-day="${d}">★</button></td>`
         ).join("");
         return `<tr><td class="label"><span class="ic">${r.icon}</span>${esc(r.label)}</td>${stars}</tr>`;
       }).join("");
+      const valRow = `<tr class="day-val-row"><td class="label"><span class="muted">Valider la journée →</span></td>${DAYS.map((_, d) =>
+        `<td><button class="day-validate" data-act="valider-jour" data-child="${c.id}" data-day="${d}" title="Valider la journée (ajoute les étoiles à la banque, les laisse cochées)">✓</button></td>`).join("")}</tr>`;
+      const val = weekValidatedTotal(c.id), lit = weekTotal(c.id), pend = lit - val;
       return `
         <div class="child-card ${c.color}">
           <div class="child-head"><span class="badge">${c.emoji} ${esc(c.name)}</span><span class="age">${c.age} ans</span></div>
@@ -384,11 +414,12 @@ function renderRoutines() {
             <table class="routine">
               <thead><tr><th class="label"></th>${DAYS.map(d => `<th class="day">${d}</th>`).join("")}</tr></thead>
               <tbody>${rows}</tbody>
+              <tfoot>${valRow}</tfoot>
             </table>
           </div>
           <div class="week-bar">
-            <span class="week-total">Cette semaine : <b>⭐ ${weekTotal(c.id)}</b></span>
-            <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="validate" data-child="${c.id}">✅ Valider la semaine de ${esc(c.name)}</button>
+            <span class="week-total">✅ <b>${val}</b> validées${pend > 0 ? ` · <b>${pend}</b> à valider` : ""}</span>
+            <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="validate" data-child="${c.id}">🔄 Valider la semaine (remet à zéro)</button>
           </div>
         </div>`;
     }).join("") + renderBonusBlock();
@@ -464,7 +495,8 @@ function journalList(c) {
 function journalRow(e) {
   const pending = e.status === "pending" || e.status === "in_progress";
   const actions = pending
-    ? `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
+    ? `<button class="btn small blue" data-act="launch-one" data-id="${e.id}" title="Faire couler le sablier de cette punition">▶️</button>
+       <button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
        <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
        <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`
@@ -486,7 +518,8 @@ function journalRow(e) {
 function renderSessionPanel(childId) {
   const s = state.sessions[childId];
   const c = child(childId);
-  const entries = orderedPending(childId);
+  const entries = sessionEntries(childId);
+  const solo = !!s.onlyId;
   const total = entries.reduce((a, e) => a + e.remainingMin, 0);
   const done = total <= 0;
   const list = entries.length ? entries.map((e, i) => {
@@ -506,7 +539,7 @@ function renderSessionPanel(childId) {
       : `<button class="btn green" data-act="resume-session" data-child="${childId}">▶️ Reprendre</button> <button class="btn danger" data-act="stop-session" data-child="${childId}">⏹ Arrêter</button>`);
   const statusTxt = done ? "Terminé ✓" : (s.running ? "En cours…" : "En pause");
   return `<div class="session-panel ${c.color}" data-sess-child="${childId}">
-    <h3>⏳ Sablier · ${c.emoji} ${esc(c.name)}</h3>
+    <h3>⏳ Sablier · ${c.emoji} ${esc(c.name)}${solo ? " · 1 punition" : ""}</h3>
     <div class="sess-total" data-sess-total>${fmtClock(total)}</div>
     <div class="muted" style="text-align:center;margin-bottom:10px">${statusTxt}</div>
     <div class="sess-list">${list}</div>
@@ -520,13 +553,13 @@ function tickSession() {
   let needRender = false;
   for (const childId of ids) {
     const s = state.sessions[childId];
-    const entries = orderedPending(childId);
+    const entries = sessionEntries(childId);
     const consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
 
     // franchissement d'un palier → on enregistre (et on synchronise) une fois
     if (consumed > 0 && entries.length && consumed >= entries[0].remainingMin) {
       commitConsumed(childId); save();
-      if (orderedPending(childId).reduce((a, e) => a + e.remainingMin, 0) <= 0) { s.running = false; s.runningSince = null; }
+      if (sessionEntries(childId).reduce((a, e) => a + e.remainingMin, 0) <= 0) { s.running = false; s.runningSince = null; }
       needRender = true;
       continue;
     }
@@ -899,15 +932,36 @@ view.addEventListener("click", (e) => {
   const childId = el.dataset.child, id = el.dataset.id;
 
   if (a === "star") {
+    const day = +el.dataset.day, rid = el.dataset.routine;
     const cells = weekCells(childId);
-    const arr = cells[el.dataset.routine] || (cells[el.dataset.routine] = [false, false, false, false, false, false, false]);
-    arr[+el.dataset.day] = !arr[+el.dataset.day];
+    const arr = cells[rid] || (cells[rid] = [false, false, false, false, false, false, false]);
+    const wasOn = arr[day];
+    arr[day] = !wasOn;
+    // décocher une étoile déjà mise en banque → on la retire aussi de la banque
+    if (wasOn) {
+      const v = weekValCells(childId)[rid];
+      if (v && v[day]) { v[day] = false; const c = child(childId); c.stars = Math.max(0, c.stars - 1); }
+    }
+    commit();
+  }
+  else if (a === "valider-jour") {
+    const day = +el.dataset.day, c = child(childId);
+    const cells = weekCells(childId), vcells = weekValCells(childId);
+    let added = 0;
+    for (const rid in cells) {
+      if (cells[rid][day]) {
+        vcells[rid] = vcells[rid] || [false, false, false, false, false, false, false];
+        if (!vcells[rid][day]) { vcells[rid][day] = true; added++; }
+      }
+    }
+    if (!added) { toast("Rien à valider ce jour (déjà validé ou aucune étoile)"); return; }
+    c.stars += added;
+    toast(`+${added} ⭐ pour ${c.name} (${DAYS[day]} validé)`);
     commit();
   }
   else if (a === "validate") {
-    const won = weekTotal(childId);
-    if (won === 0) { toast("Aucune étoile à valider cette semaine"); return; }
-    openWeekConfirm(childId, won);
+    if (weekTotal(childId) === 0 && weekValidatedTotal(childId) === 0) { toast("Le tableau est déjà vide"); return; }
+    openWeekConfirm(childId);
   }
   else if (a === "show-history") openHistory();
   else if (a === "export-xlsx") exportJournalXlsx(el.dataset.kind);
@@ -949,6 +1003,16 @@ view.addEventListener("click", (e) => {
     if (state.sessions[childId]) { toast("Le sablier tourne déjà"); return; }
     if (pendingMin(childId) <= 0) { toast("Rien dans le sablier"); return; }
     state.sessions[childId] = { running: true, runningSince: Date.now() };
+    commit();
+  }
+  else if (a === "launch-one") {
+    const e = state.punishmentLog.find(x => x.id === id);
+    if (!e) return;
+    const cid = e.childId;
+    if (state.sessions[cid]) { toast("Un sablier tourne déjà pour " + (child(cid) ? child(cid).name : "cet enfant")); return; }
+    if (e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) { toast("Rien à faire couler ici"); return; }
+    state.sessions[cid] = { running: true, runningSince: Date.now(), onlyId: e.id };
+    currentTab = "punitions";
     commit();
   }
   else if (a === "pause-session") { commitConsumed(childId); state.sessions[childId].running = false; state.sessions[childId].runningSince = null; commit(); }
@@ -1134,6 +1198,8 @@ function openEditLog(id) {
   const dayBtns = [["0", "Aujourd'hui"], ["1", "Hier"], ["2", "Avant-hier"], ["-1", "Autre date"]]
     .map(([v, t]) => `<button data-v="${v}" class="${(off >= 0 && off <= 2 ? off : -1) == v ? "on" : ""}">${t}</button>`).join("");
   const momBtns = Object.entries(MOMENTS).map(([k, m]) => `<button data-v="${k}" class="${e.moment === k ? "on" : ""}">${m.label}</button>`).join("");
+  const byList = e.by && !state.parents.includes(e.by) ? [e.by, ...state.parents] : state.parents.slice();
+  const byOpts = ["", ...byList].map(p => `<option value="${esc(p)}" ${(e.by || "") === p ? "selected" : ""}>${p ? esc(p) : "—"}</option>`).join("");
   const dateStr = todayStr(off >= 0 ? off : 0);
   openModal(`<h3>Modifier la punition</h3>
     <div class="field"><label>Type</label><input id="el-type" type="text" value="${esc(e.typeLabel)}"></div>
@@ -1144,6 +1210,7 @@ function openEditLog(id) {
       <input id="el-date" type="date" value="${new Date(e.loggedTs).toISOString().slice(0,10)}" style="margin-top:8px;${off >= 0 && off <= 2 ? "display:none" : ""}">
     </div>
     <div class="field"><label>Moment</label><div class="seg" id="el-moment">${momBtns}</div></div>
+    <div class="field"><label>Mis par</label><select id="el-by">${byOpts}</select></div>
     <div class="field"><label>Commentaire</label><textarea id="el-comment" rows="2">${esc(e.comment || "")}</textarea></div>
     <button class="btn primary" id="el-ok" style="width:100%">Enregistrer</button>`);
   const dayW = modalContent.querySelector("#el-day"), dateI = modalContent.querySelector("#el-date");
@@ -1159,31 +1226,32 @@ function openEditLog(id) {
     if (e.status === "pending" || e.status === "in_progress") e.remainingMin = nd;
     e.durationMin = nd;
     e.loggedTs = makeTs(ds, mom); e.moment = mom;
+    e.by = modalContent.querySelector("#el-by").value || e.by;
     e.comment = modalContent.querySelector("#el-comment").value.trim();
     e.edited = true;
     closeModal(); toast("Punition modifiée"); commit();
   };
 }
 
-// ---- Validation de semaine (confirmation explicite) ----
-function openWeekConfirm(childId, won) {
+// ---- Valider la semaine = remettre le tableau à zéro (les étoiles sont banquées par jour) ----
+function openWeekConfirm(childId) {
   const c = child(childId);
+  const val = weekValidatedTotal(childId), pend = weekTotal(childId) - val;
   openModal(`<h3>Valider la semaine de ${esc(c.name)} ?</h3>
-    <p>On ajoute <b>${won} ⭐</b> à son solde (total : <b>${c.stars + won} ⭐</b>), puis le tableau de la semaine est remis à zéro.</p>
+    <p>Ça <b>remet le tableau de la semaine à zéro</b>. Les <b>${val} ⭐ déjà validées</b> restent acquises (déjà dans la banque).
+    ${pend > 0 ? `<br><span style="color:var(--red);font-weight:700">⚠️ ${pend} étoile(s) cochée(s) mais non validée(s) par jour ne seront PAS comptées.</span>` : ""}</p>
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="btn ghost" id="wk-cancel" style="flex:1">Annuler</button>
-      <button class="btn green" id="wk-ok" style="flex:1.4">✅ Oui, valider ${won} ⭐</button>
+      <button class="btn green" id="wk-ok" style="flex:1.4">🔄 Remettre à zéro</button>
     </div>`);
   modalContent.querySelector("#wk-cancel").onclick = closeModal;
   modalContent.querySelector("#wk-ok").onclick = () => {
-    const wk = weekKey(), cells = weekCells(childId), byRoutine = {};
-    c.routines.forEach(r => { const n = (cells[r.id] || []).filter(Boolean).length; if (n) byRoutine[r.id] = { label: r.label, count: n }; });
-    state.starHistory[wk] = state.starHistory[wk] || {};
-    state.starHistory[wk][childId] = { total: won, ts: Date.now(), byRoutine };
-    c.stars += won;
-    state.log.unshift({ ts: Date.now(), type: "semaine", child: c.name, n: won });
+    const wk = weekKey(), vcells = weekValCells(childId), byRoutine = {};
+    c.routines.forEach(r => { const n = (vcells[r.id] || []).filter(Boolean).length; if (n) byRoutine[r.id] = { label: r.label, count: n }; });
+    if (val > 0) { state.starHistory[wk] = state.starHistory[wk] || {}; state.starHistory[wk][childId] = { total: val, ts: Date.now(), byRoutine }; }
     if (state.week[wk]) delete state.week[wk][childId];
-    closeModal(); toast(`+${won} ⭐ pour ${c.name} !`); commit();
+    if (state.weekValidated[wk]) delete state.weekValidated[wk][childId];
+    closeModal(); toast(`Semaine de ${c.name} remise à zéro`); commit();
   };
 }
 

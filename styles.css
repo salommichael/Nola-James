@@ -230,6 +230,12 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .demo-banner button { border: none; background: #fff; color: #4a4458; border-radius: 999px; padding: 6px 16px; cursor: pointer; font-weight: 800; font-size: .85rem; }
 .demo-banner button:active { transform: scale(.95); }
 
+/* Étoile mise en banque (validée par jour) + validation par jour */
+.star-cell.banked { box-shadow: 0 0 0 2.5px var(--green); }
+.day-val-row td { padding-top: 8px; text-align: center; }
+.day-validate { border: none; background: #e3f3e4; color: #2d7a45; border-radius: 8px; padding: 6px 4px; font-size: .95rem; font-weight: 800; cursor: pointer; width: 90%; }
+.day-validate:active { transform: scale(.9); background: var(--green); color: #fff; }
+
 /* Glisser-déposer */
 .drag-handle { cursor: grab; font-size: 1.2rem; color: #c4bdd0; padding: 0 6px; user-select: none; touch-action: none; line-height: 1; }
 .drag-handle:active { cursor: grabbing; }
