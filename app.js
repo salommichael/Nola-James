@@ -72,7 +72,7 @@ const DEFAULT_STATE = {
   weekValidated: {},   // { weekKey: { childId: { routineId: [7 bool] } } } — étoiles déjà mises en banque (par jour)
   starHistory: {},     // { weekKey: { childId: { total, ts, byRoutine: { id: {label, count} } } } }
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
-  sessions: {},        // sabliers en cours : { childId: { running, runningSince } }
+  running: null,       // un seul chrono à la fois : { id, since } (id de la punition qui coule)
   log: [],             // historique étoiles (validations + récompenses)
   parents: ["Papa", "Maman"], // profils (qui met la punition) ; le choix courant est local à l'appareil
   migrations: {}       // marqueurs de migration de données déjà appliquées
@@ -238,10 +238,8 @@ function hydrate(loaded) {
   s.starHistory = loaded.starHistory || {};
   s.log = loaded.log || [];
   s.punishmentLog = loaded.punishmentLog || [];
-  s.sessions = loaded.sessions || (loaded.session && loaded.session.childId
-    ? { [loaded.session.childId]: { running: loaded.session.running, runningSince: loaded.session.runningSince } }
-    : {});
-  delete s.session;
+  s.running = loaded.running || null;
+  delete s.session; delete s.sessions;
   s.punishments = loaded.punishments || base.punishments;
   s.rewards = loaded.rewards || base.rewards;
   s.parents = (loaded.parents && loaded.parents.length) ? loaded.parents : base.parents;
@@ -331,31 +329,24 @@ function fmtLogged(e) {
   return `${wd} ${dd}.${mm}${mo ? " · " + mo : ""}`;
 }
 
-// Entrées que le sablier d'un enfant fait couler : soit une punition précise (onlyId), soit tout le stock (plus ancienne d'abord)
-function sessionEntries(childId) {
-  const s = state.sessions[childId];
-  if (s && s.onlyId) {
-    const e = state.punishmentLog.find(x => x.id === s.onlyId && (x.status === "pending" || x.status === "in_progress"));
-    return e ? [e] : [];
+// Un seul chrono tourne à la fois (state.running = { id, since }).
+// Temps restant affiché d'une punition : décrémenté en direct si c'est elle qui coule.
+function liveRemaining(e) {
+  if (state.running && state.running.id === e.id) {
+    return Math.max(0, e.remainingMin - (Date.now() - state.running.since) / 60000);
   }
-  return orderedPending(childId);
+  return e.remainingMin;
 }
-
-// applique le temps écoulé du sablier d'un enfant aux punitions
-function commitConsumed(childId) {
-  const s = state.sessions[childId];
-  if (!s) return;
-  let consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
-  for (const e of sessionEntries(childId)) {
-    if (consumed <= 0) break;
-    if (consumed >= e.remainingMin) {
-      consumed -= e.remainingMin;
-      e.remainingMin = 0; e.status = "served"; e.servedTs = Date.now();
-    } else {
-      e.remainingMin = +(e.remainingMin - consumed).toFixed(3); consumed = 0; e.status = "in_progress";
-    }
-  }
-  if (s.running) s.runningSince = Date.now();
+// Fige le temps écoulé du chrono courant dans la punition (à la pause / au changement / à la fin).
+function commitRunning() {
+  const r = state.running;
+  if (!r) return;
+  const e = state.punishmentLog.find(x => x.id === r.id);
+  if (!e) { state.running = null; return; }
+  const elapsed = (Date.now() - r.since) / 60000;
+  e.remainingMin = Math.max(0, +(e.remainingMin - elapsed).toFixed(3));
+  if (e.remainingMin <= 0) { e.status = "served"; e.servedTs = Date.now(); state.running = null; }
+  else { e.status = "in_progress"; }
 }
 
 // ============================================================================
@@ -442,25 +433,40 @@ function renderBonusBlock() {
 
 // ---- PUNITIONS -------------------------------------------------------------
 function renderPunitions() {
-  let html = state.children.filter(c => state.sessions[c.id]).map(c => renderSessionPanel(c.id)).join("");
-  html += state.children.map(c => {
+  view.innerHTML = state.children.map(c => {
     const total = pendingMin(c.id);
     const lvl = colorLevel(c);
-    const disabled = (total <= 0 || state.sessions[c.id]) ? "disabled" : "";
     return `
       <div class="child-card ${c.color}">
         <div class="child-head">
           <span class="badge">${c.emoji} ${esc(c.name)}</span>
           <span class="lvl-pill lvl-${lvl}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
         </div>
-        <button class="btn ${c.color === 'pink' ? 'primary' : 'blue'}" data-act="launch" data-child="${c.id}" ${disabled} style="width:100%">⏳ Lancer le sablier de ${esc(c.name)}</button>
+        <h4 class="sec">⏳ Sablier — lance le chrono de chaque punition</h4>
+        <div class="sess-list">${sablierList(c)}</div>
         <h4 class="sec">Donner une punition</h4>
         <div class="pun-list">${pickerCards(c)}</div>
         <h4 class="sec">Journal de ${esc(c.name)}</h4>
         ${journalList(c)}
       </div>`;
   }).join("");
-  view.innerHTML = html;
+}
+
+function sablierList(c) {
+  const pend = orderedPending(c.id);
+  if (!pend.length) return `<p class="empty">Aucune punition en attente 🎉</p>`;
+  return pend.map(e => {
+    const running = !!(state.running && state.running.id === e.id);
+    const rem = liveRemaining(e);
+    const pct = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100));
+    return `<div class="sess-row ${running ? "current" : ""}" data-pun-row="${e.id}">
+      <span class="sess-fill" data-fill style="width:${pct}%"></span>
+      <button class="btn small ${running ? "ghost" : "green"}" data-act="${running ? "pause-pun" : "start-pun"}" data-id="${e.id}" title="${running ? "Pause" : "Lancer ce chrono"}">${running ? "⏸" : "▶️"}</button>
+      <span class="ic">${e.icon}</span>
+      <span class="grow"><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span><br><span class="muted">reçue ${fmtLogged(e)}</span></span>
+      <span class="rem" data-rem>${fmtDur(Math.ceil(rem))}</span>
+    </div>`;
+  }).join("");
 }
 
 function pickerCards(c) {
@@ -495,8 +501,7 @@ function journalList(c) {
 function journalRow(e) {
   const pending = e.status === "pending" || e.status === "in_progress";
   const actions = pending
-    ? `<button class="btn small blue" data-act="launch-one" data-id="${e.id}" title="Faire couler le sablier de cette punition">▶️</button>
-       <button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
+    ? `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
        <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
        <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`
@@ -515,75 +520,18 @@ function journalRow(e) {
   </div>`;
 }
 
-function renderSessionPanel(childId) {
-  const s = state.sessions[childId];
-  const c = child(childId);
-  const entries = sessionEntries(childId);
-  const solo = !!s.onlyId;
-  const total = entries.reduce((a, e) => a + e.remainingMin, 0);
-  const done = total <= 0;
-  const list = entries.length ? entries.map((e, i) => {
-    const pct = Math.min(100, Math.max(0, (e.durationMin - e.remainingMin) / e.durationMin * 100));
-    return `
-    <div class="sess-row ${i === 0 ? "current" : ""}" data-sess-entry="${e.id}">
-      <span class="sess-fill" data-fill style="width:${pct}%"></span>
-      <span class="ic">${e.icon}</span>
-      <span class="grow"><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span><br><span class="muted">reçue ${fmtLogged(e)}</span></span>
-      <span class="rem" data-rem>${fmtDur(Math.ceil(e.remainingMin))}</span>
-    </div>`;
-  }).join("") : `<p class="empty">Tout est fait 🎉</p>`;
-  const controls = done
-    ? `<button class="btn green" data-act="stop-session" data-child="${childId}">✓ Terminer le sablier</button>`
-    : (s.running
-      ? `<button class="btn ghost" data-act="pause-session" data-child="${childId}">⏸ Pause</button> <button class="btn danger" data-act="stop-session" data-child="${childId}">⏹ Arrêter</button>`
-      : `<button class="btn green" data-act="resume-session" data-child="${childId}">▶️ Reprendre</button> <button class="btn danger" data-act="stop-session" data-child="${childId}">⏹ Arrêter</button>`);
-  const statusTxt = done ? "Terminé ✓" : (s.running ? "En cours…" : "En pause");
-  return `<div class="session-panel ${c.color}" data-sess-child="${childId}">
-    <h3>⏳ Sablier · ${c.emoji} ${esc(c.name)}${solo ? " · 1 punition" : ""}</h3>
-    <div class="sess-total" data-sess-total>${fmtClock(total)}</div>
-    <div class="muted" style="text-align:center;margin-bottom:10px">${statusTxt}</div>
-    <div class="sess-list">${list}</div>
-    <div style="text-align:center;margin-top:14px">${controls}</div>
-  </div>`;
-}
-
-function tickSession() {
-  const ids = Object.keys(state.sessions || {});
-  if (!ids.length) return;
-  let needRender = false;
-  for (const childId of ids) {
-    const s = state.sessions[childId];
-    const entries = sessionEntries(childId);
-    const consumed = (s.running && s.runningSince) ? (Date.now() - s.runningSince) / 60000 : 0;
-
-    // franchissement d'un palier → on enregistre (et on synchronise) une fois
-    if (consumed > 0 && entries.length && consumed >= entries[0].remainingMin) {
-      commitConsumed(childId); save();
-      if (sessionEntries(childId).reduce((a, e) => a + e.remainingMin, 0) <= 0) { s.running = false; s.runningSince = null; }
-      needRender = true;
-      continue;
-    }
-
-    const panel = document.querySelector(`[data-sess-child="${childId}"]`);
-    if (!panel) continue;
-    const stateTotal = entries.reduce((a, e) => a + e.remainingMin, 0);
-    const liveTotal = Math.max(0, stateTotal - consumed);
-    const totEl = panel.querySelector("[data-sess-total]");
-    if (totEl) totEl.textContent = fmtClock(liveTotal);
-    let c2 = consumed;
-    for (const e of entries) {
-      let rem = e.remainingMin;
-      if (c2 > 0) { if (c2 >= rem) { c2 -= rem; rem = 0; } else { rem -= c2; c2 = 0; } }
-      const el = panel.querySelector(`[data-sess-entry="${e.id}"]`);
-      if (el) {
-        const r = el.querySelector("[data-rem]"); if (r) r.textContent = fmtDur(Math.max(0, Math.ceil(rem)));
-        const f = el.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100)) + "%";
-        if (rem <= 0) el.classList.add("served");
-      }
-    }
-    if (liveTotal <= 0 && s.running) { commitConsumed(childId); s.running = false; s.runningSince = null; save(); needRender = true; }
+function tickRunning() {
+  const r = state.running;
+  if (!r) return;
+  const e = state.punishmentLog.find(x => x.id === r.id);
+  if (!e) { state.running = null; return; }
+  const live = e.remainingMin - (Date.now() - r.since) / 60000;
+  if (live <= 0) { commitRunning(); save(); render(); return; } // chrono terminé
+  const row = document.querySelector(`[data-pun-row="${e.id}"]`);
+  if (row) {
+    const t = row.querySelector("[data-rem]"); if (t) t.textContent = fmtDur(Math.ceil(live));
+    const f = row.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - live) / e.durationMin * 100)) + "%";
   }
-  if (needRender) render();
 }
 
 // ---- RÉCOMPENSES -----------------------------------------------------------
@@ -999,25 +947,14 @@ view.addEventListener("click", (e) => {
     }
   }
   // ---- Punitions : séance ----
-  else if (a === "launch") {
-    if (state.sessions[childId]) { toast("Le sablier tourne déjà"); return; }
-    if (pendingMin(childId) <= 0) { toast("Rien dans le sablier"); return; }
-    state.sessions[childId] = { running: true, runningSince: Date.now() };
-    commit();
-  }
-  else if (a === "launch-one") {
+  else if (a === "start-pun") {
     const e = state.punishmentLog.find(x => x.id === id);
-    if (!e) return;
-    const cid = e.childId;
-    if (state.sessions[cid]) { toast("Un sablier tourne déjà pour " + (child(cid) ? child(cid).name : "cet enfant")); return; }
-    if (e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) { toast("Rien à faire couler ici"); return; }
-    state.sessions[cid] = { running: true, runningSince: Date.now(), onlyId: e.id };
-    currentTab = "punitions";
+    if (!e || e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) { toast("Rien à faire couler"); return; }
+    commitRunning();                          // fige (met en pause) le chrono actuellement en cours
+    state.running = { id: e.id, since: Date.now() };
     commit();
   }
-  else if (a === "pause-session") { commitConsumed(childId); state.sessions[childId].running = false; state.sessions[childId].runningSince = null; commit(); }
-  else if (a === "resume-session") { state.sessions[childId].running = true; state.sessions[childId].runningSince = Date.now(); commit(); }
-  else if (a === "stop-session") { commitConsumed(childId); delete state.sessions[childId]; commit(); }
+  else if (a === "pause-pun") { commitRunning(); state.running = null; commit(); }
   // ---- Récompenses ----
   else if (a === "select-child") { selectedChild = childId; render(); }
   else if (a === "redeem") {
@@ -1402,7 +1339,7 @@ const DEMO_TTL = 12 * 3600000; // la démo se réinitialise toutes les 12 h
         state = buildDemoSeed(Storage.realConfigState); save(); render(); toast("Démo réinitialisée 🔄");
       }
     }, 5 * 60000);
-    setInterval(tickSession, 1000);
+    setInterval(tickRunning, 1000);
     return;
   }
 
@@ -1411,7 +1348,7 @@ const DEMO_TTL = 12 * 3600000; // la démo se réinitialise toutes les 12 h
   // Sécurité : ne sauvegarder au démarrage que si on a vraiment chargé des données
   // (ou en démo locale), pour ne jamais écraser la vraie base avec des valeurs par défaut.
   if (loaded || Storage.demo) save();
-  setInterval(tickSession, 1000);
+  setInterval(tickRunning, 1000);
 })();
 
 // Jeu de données démo : config calquée sur le réel, opérationnel aléatoire et réaliste.
