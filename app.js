@@ -209,7 +209,7 @@ function emojiCategories() {
 //  ÉTAT
 // ============================================================================
 let state = null;
-let currentTab = "routines";
+let currentTab = "punitions";
 let selectedChild = "nola";
 
 const child = (id) => state.children.find(c => c.id === id);
@@ -370,11 +370,12 @@ function renderBalances() {
   document.getElementById("balances").innerHTML = state.children.map(c => {
     const total = pendingMin(c.id);
     const punTag = total > 0 ? `<span class="mini-lvl lvl-${colorLevel(c)}">⏳ ${fmtDur(Math.ceil(total))}</span>` : "";
+    const sel = selectedChild === c.id ? `selected ${c.color}` : "";
     return `
-    <div class="balance-pill">
+    <button class="balance-pill ${sel}" data-act="select-child" data-child="${c.id}">
       <span class="avatar" style="background:${c.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'}">${c.emoji}</span>
       <span>${esc(c.name)} <small>${c.age} ans</small><br><span class="stars">⭐ ${c.stars}</span> ${punTag}</span>
-    </div>`;
+    </button>`;
   }).join("");
 }
 
@@ -384,7 +385,7 @@ function renderRoutines() {
       <p class="muted" style="margin:0 0 8px">Semaine ${weekKey()} · clique une étoile quand l'enfant réussit</p>
       <button class="btn ghost small" data-act="show-history">📜 Historique des étoiles</button>
     </div>` +
-    state.children.map(c => {
+    [child(selectedChild)].map(c => {
       const cells = weekCells(c.id);
       const vcells = weekValCells(c.id);
       const rows = c.routines.map(r => {
@@ -420,7 +421,7 @@ function renderBonusBlock() {
   return `<div class="child-card" style="border:2px dashed var(--gold)">
     <div class="child-head"><span class="badge" style="background:#fff6d8;color:#b9870b">✨ Étoiles spontanées</span></div>
     <p class="muted">Pour récompenser un bon geste sur le moment. Une raison sera demandée (obligatoire).</p>
-    ${state.children.map(c => `
+    ${[child(selectedChild)].map(c => `
       <div class="row" style="border:none">
         <span class="avatar" style="width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:1.2rem;background:${c.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'}">${c.emoji}</span>
         <b style="min-width:54px">${esc(c.name)}</b>
@@ -433,26 +434,20 @@ function renderBonusBlock() {
 
 // ---- PUNITIONS -------------------------------------------------------------
 function renderPunitions() {
-  const pickerCol = c => `
+  const c = child(selectedChild);
+  const total = pendingMin(c.id);
+  view.innerHTML = `
     <div class="picker-col ${c.color}">
       <div class="picker-head">${c.emoji} Punir ${esc(c.name)}</div>
       <div class="pun-list">${pickerCards(c)}</div>
-    </div>`;
-  const timerSec = c => {
-    const total = pendingMin(c.id);
-    return `
-      <div class="child-card ${c.color}">
-        <div class="child-head">
-          <span class="badge">${c.emoji} ${esc(c.name)}</span>
-          <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
-        </div>
-        <div class="sess-list">${activeList(c)}</div>
-      </div>`;
-  };
-  view.innerHTML = `
-    <div class="pun-pickers">${state.children.map(pickerCol).join("")}</div>
-    <h4 class="sec" style="text-align:center;font-size:1.05rem">⏳ Sabliers en cours</h4>
-    ${state.children.map(timerSec).join("")}
+    </div>
+    <div class="child-card ${c.color}">
+      <div class="child-head">
+        <span class="badge">${c.emoji} ${esc(c.name)}</span>
+        <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
+      </div>
+      <div class="sess-list">${activeList(c)}</div>
+    </div>
     <p class="muted" style="text-align:center;margin-top:6px">Les punitions faites sont dans l'onglet 📒 Journal.</p>`;
 }
 
@@ -545,9 +540,7 @@ function tickRunning() {
 
 // ---- RÉCOMPENSES -----------------------------------------------------------
 function renderRecompenses() {
-  const childBtns = state.children.map(c =>
-    `<button class="btn ${c.color === 'pink' ? 'primary' : 'blue'} ${selectedChild === c.id ? '' : 'ghost'}" data-act="select-child" data-child="${c.id}">${c.emoji} ${esc(c.name)} · ⭐${c.stars}</button>`
-  ).join(" ");
+  const c0 = child(selectedChild);
   const tiers = [1, 2, 3].map(t => {
     const items = state.rewards.filter(r => r.tier === t).map(r => {
       const c = child(selectedChild);
@@ -562,9 +555,8 @@ function renderRecompenses() {
     </div>`;
   }).join("");
   view.innerHTML = `
-    <div style="text-align:center;margin-bottom:16px">
-      <p class="muted">Pour qui ?</p>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${childBtns}</div>
+    <div style="text-align:center;margin-bottom:14px">
+      <span style="font-weight:800;font-size:1.1rem;padding:8px 18px;border-radius:14px;background:${c0.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'};color:${c0.color === 'pink' ? 'var(--pink-deep)' : 'var(--blue-deep)'}">${c0.emoji} ${esc(c0.name)} · ⭐ ${c0.stars}</span>
     </div>${tiers}`;
 }
 
@@ -575,7 +567,8 @@ function fmtDate(ts) { const d = new Date(ts); return String(d.getDate()).padSta
 // Lignes "Punitions & récompenses" (tout, trié du plus récent au plus ancien)
 function journalRows() {
   const rows = [];
-  state.punishmentLog.forEach(e => rows.push({
+  const cid = selectedChild, cname = child(cid) ? child(cid).name : "";
+  state.punishmentLog.filter(e => e.childId === cid).forEach(e => rows.push({
     ts: e.loggedTs,
     Date: fmtLogged(e),
     Enfant: child(e.childId) ? child(e.childId).name : (e.childId || ""),
@@ -588,7 +581,7 @@ function journalRows() {
     "Fait le": e.servedTs ? fmtDate(e.servedTs) : "",
     Commentaire: e.comment || ""
   }));
-  (state.log || []).filter(l => l.type === "récompense").forEach(l => rows.push({
+  (state.log || []).filter(l => l.type === "récompense" && l.child === cname).forEach(l => rows.push({
     ts: l.ts,
     Date: fmtDate(l.ts),
     Enfant: l.child,
@@ -601,7 +594,7 @@ function journalRows() {
     "Fait le": "",
     Commentaire: ""
   }));
-  (state.log || []).filter(l => l.type === "bonus").forEach(l => rows.push({
+  (state.log || []).filter(l => l.type === "bonus" && (l.childId === cid || l.child === cname)).forEach(l => rows.push({
     ts: l.ts,
     Date: fmtDate(l.ts),
     Enfant: l.child,
@@ -623,7 +616,7 @@ function routineRows() {
   const rows = [];
   Object.keys(state.starHistory || {}).sort().reverse().forEach(wk => {
     const per = state.starHistory[wk];
-    state.children.forEach(c => {
+    [child(selectedChild)].forEach(c => {
       const h = per[c.id];
       if (!h) return;
       Object.values(h.byRoutine || {}).forEach(b => rows.push({ Semaine: wk, Enfant: c.name, Action: b.label, "Étoiles": b.count }));
@@ -645,7 +638,9 @@ function dataTable(rows, cols, catCol) {
 
 function renderJournal() {
   const jr = journalRows(), rr = routineRows();
+  const c0 = child(selectedChild);
   view.innerHTML = `
+    <p class="muted" style="text-align:center;margin-bottom:10px">Journal de ${c0.emoji} <b>${esc(c0.name)}</b> — change d'enfant via les pastilles en haut</p>
     <div class="setting-block">
       <div class="jhead">
         <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
@@ -666,7 +661,8 @@ async function exportJournalXlsx(kind) {
   const isRoutines = kind === "routines";
   const rows = isRoutines ? routineRows() : journalRows().map(({ ts, ...keep }) => keep);
   const sheetName = isRoutines ? "Routines" : "Punitions & récompenses";
-  const fileBase = isRoutines ? "historique-routines" : "historique-punitions-recompenses";
+  const cn = normalize((child(selectedChild) || {}).name || "enfant").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const fileBase = (isRoutines ? "historique-routines-" : "historique-punitions-recompenses-") + cn;
   if (!rows.length) { toast("Rien à exporter"); return; }
   try {
     const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
@@ -740,7 +736,7 @@ function setupSortables() {
 
 // ---- RÉGLAGES --------------------------------------------------------------
 function renderReglages() {
-  const childrenBlocks = state.children.map(c => `
+  const childrenBlocks = [child(selectedChild)].map(c => `
     <div class="setting-block">
       <h3>${c.emoji} ${esc(c.name)}</h3>
       <div class="row">
@@ -1294,7 +1290,17 @@ function toast(msg) {
 // ============================================================================
 document.getElementById("tabs").addEventListener("click", e => {
   const b = e.target.closest(".tab"); if (!b) return;
-  currentTab = b.dataset.tab; render();
+  currentTab = b.dataset.tab; window.scrollTo(0, 0); render();
+});
+
+// Switch d'enfant via les pastilles du haut : même onglet, même position de page.
+document.getElementById("balances").addEventListener("click", e => {
+  const b = e.target.closest("[data-act='select-child']"); if (!b) return;
+  if (selectedChild === b.dataset.child) return;
+  const y = window.scrollY;
+  selectedChild = b.dataset.child;
+  render();
+  window.scrollTo(0, y);
 });
 
 // ---- Profil parent (qui suis-je) ----

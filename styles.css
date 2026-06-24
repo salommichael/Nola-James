@@ -40,6 +40,11 @@ body {
   background: var(--card); border-radius: 999px; padding: 8px 16px 8px 10px;
   box-shadow: var(--shadow); font-weight: 700;
 }
+.balance-pill { border: none; font: inherit; cursor: pointer; color: var(--ink); text-align: left; opacity: .6; transition: opacity .15s, box-shadow .15s, transform .1s; }
+.balance-pill:active { transform: scale(.97); }
+.balance-pill.selected { opacity: 1; }
+.balance-pill.selected.pink { box-shadow: 0 0 0 3px var(--pink), var(--shadow); }
+.balance-pill.selected.blue { box-shadow: 0 0 0 3px var(--blue), var(--shadow); }
 .balance-pill .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 1.1rem; }
 .balance-pill .stars { color: var(--gold); }
 .balance-pill small { color: var(--ink-soft); font-weight: 500; }
