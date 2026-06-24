@@ -213,7 +213,11 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .st-pard { background: #eee; color: #777; }
 .edited { font-size: .66rem; background: #eee; color: #888; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
 .jactions { display: flex; gap: 4px; flex-wrap: wrap; }
-.jright { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.sess-row { align-items: flex-start; }
+.sess-row .play { flex: none; margin-top: 2px; }
+.sess-row .grow { align-self: center; }
+.jright { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; }
+.jright .rem { font-size: .85rem; }
 .pie { flex: none; }
 .jcomment { margin-top: 4px; font-size: .85rem; color: var(--ink-soft); }
 .jcomment i { font-style: italic; }

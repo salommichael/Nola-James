@@ -442,30 +442,12 @@ function renderPunitions() {
           <span class="badge">${c.emoji} ${esc(c.name)}</span>
           <span class="lvl-pill lvl-${lvl}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
         </div>
-        <h4 class="sec">⏳ Sablier — lance le chrono de chaque punition</h4>
-        <div class="sess-list">${sablierList(c)}</div>
+        <h4 class="sec">⏳ Sablier — punitions en attente</h4>
+        <div class="sess-list">${activeList(c)}</div>
         <h4 class="sec">Donner une punition</h4>
         <div class="pun-list">${pickerCards(c)}</div>
-        <h4 class="sec">Journal de ${esc(c.name)}</h4>
-        ${journalList(c)}
+        <p class="muted" style="text-align:center;margin-top:10px">Les punitions faites sont dans l'onglet 📒 Journal.</p>
       </div>`;
-  }).join("");
-}
-
-function sablierList(c) {
-  const pend = orderedPending(c.id);
-  if (!pend.length) return `<p class="empty">Aucune punition en attente 🎉</p>`;
-  return pend.map(e => {
-    const running = !!(state.running && state.running.id === e.id);
-    const rem = liveRemaining(e);
-    const pct = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100));
-    return `<div class="sess-row ${running ? "current" : ""}" data-pun-row="${e.id}">
-      <span class="sess-fill" data-fill style="width:${pct}%"></span>
-      <button class="btn small ${running ? "ghost" : "green"}" data-act="${running ? "pause-pun" : "start-pun"}" data-id="${e.id}" title="${running ? "Pause" : "Lancer ce chrono"}">${running ? "⏸" : "▶️"}</button>
-      <span class="ic">${e.icon}</span>
-      <span class="grow"><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span><br><span class="muted">reçue ${fmtLogged(e)}</span></span>
-      <span class="rem" data-rem>${fmtDur(Math.ceil(rem))}</span>
-    </div>`;
   }).join("");
 }
 
@@ -486,51 +468,52 @@ function statusBadge(e) {
   return `<span class="stbadge ${cls}">${t}</span>`;
 }
 
-// Pie chart du temps écoulé d'une punition (part faite vs restante)
-function pieChart(e) {
-  let frac = 0;
-  if (e.status === "served") frac = 1;
-  else if (e.status === "in_progress") frac = e.durationMin ? (e.durationMin - e.remainingMin) / e.durationMin : 0;
+// Pie chart du temps d'une punition (part faite vs restante), avec temps restant live optionnel
+function pieFrac(e, rem) {
+  rem = (rem == null) ? e.remainingMin : rem;
+  if (e.status === "served") return 1;
+  if (e.status === "pardoned") return 0;
+  return e.durationMin ? Math.max(0, Math.min(1, (e.durationMin - rem) / e.durationMin)) : 0;
+}
+function pieSvg(frac, title) {
   frac = Math.max(0, Math.min(1, frac));
   const r = 12, c = 2 * Math.PI * r, done = +(frac * c).toFixed(2);
-  const title = `${fmtDur(e.durationMin)}${e.status === "in_progress" ? " · reste " + fmtDur(Math.ceil(e.remainingMin)) : (e.status === "served" ? " · fait" : "")}`;
-  return `<svg class="pie" width="30" height="30" viewBox="0 0 30 30" role="img"><title>${title}</title>
+  return `<svg class="pie" width="30" height="30" viewBox="0 0 30 30" role="img">${title ? `<title>${esc(title)}</title>` : ""}
     <circle cx="15" cy="15" r="${r}" fill="none" stroke="#eceaf0" stroke-width="6"/>
     <circle cx="15" cy="15" r="${r}" fill="none" stroke="var(--green)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${done} ${(c - done).toFixed(2)}" transform="rotate(-90 15 15)"/>
   </svg>`;
 }
 
-function journalList(c) {
-  const entries = state.punishmentLog.filter(e => e.childId === c.id);
-  if (!entries.length) return `<p class="empty">Aucune punition enregistrée 🎉</p>`;
-  entries.sort((a, b) => {
-    const ga = (a.status === "pending" || a.status === "in_progress") ? 0 : 1;
-    const gb = (b.status === "pending" || b.status === "in_progress") ? 0 : 1;
-    if (ga !== gb) return ga - gb;
-    return ga === 0 ? a.loggedTs - b.loggedTs : b.loggedTs - a.loggedTs;
-  });
-  return entries.map(journalRow).join("");
+// Liste des punitions EN ATTENTE d'un enfant (les "faites" disparaissent → onglet Journal).
+function activeList(c) {
+  const pend = orderedPending(c.id);
+  if (!pend.length) return `<p class="empty">Aucune punition en attente 🎉</p>`;
+  return pend.map(activeRow).join("");
 }
-
-function journalRow(e) {
-  const pending = e.status === "pending" || e.status === "in_progress";
-  const actions = pending
-    ? `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
-       <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
-       <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
-       <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`
-    : `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
-       <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`;
+function activeRow(e) {
+  const running = !!(state.running && state.running.id === e.id);
+  const rem = liveRemaining(e);
   const by = e.by ? ` · par ${esc(e.by)}` : "";
-  return `<div class="jrow ${e.status}">
+  const title = `${fmtDur(e.durationMin)} · reste ${fmtDur(Math.ceil(rem))}`;
+  return `<div class="sess-row ${running ? "current" : ""}" data-pun-row="${e.id}">
+    <button class="btn small ${running ? "ghost" : "green"} play" data-act="${running ? "pause-pun" : "start-pun"}" data-id="${e.id}" title="${running ? "Pause" : "Lancer ce chrono"}">${running ? "⏸" : "▶️"}</button>
     <span class="ic">${e.icon}</span>
     <div class="grow">
       <div><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span> ${e.edited ? '<span class="edited">édité</span>' : ""}</div>
       <div class="muted">reçue ${fmtLogged(e)}${by}</div>
       ${e.comment ? `<div class="jcomment">💬 <i>${esc(e.comment)}</i></div>` : ""}
+      <div class="jactions">
+        <button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
+        <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
+        <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
+        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>
+      </div>
     </div>
-    <div class="jright">${statusBadge(e)}${pieChart(e)}</div>
-    <div class="jactions">${actions}</div>
+    <div class="jright">
+      ${statusBadge(e)}
+      <span data-pie>${pieSvg(pieFrac(e, rem), title)}</span>
+      <span class="rem" data-rem>${fmtDur(Math.ceil(rem))}</span>
+    </div>
   </div>`;
 }
 
@@ -540,11 +523,18 @@ function tickRunning() {
   const e = state.punishmentLog.find(x => x.id === r.id);
   if (!e) { state.running = null; return; }
   const live = e.remainingMin - (Date.now() - r.since) / 60000;
-  if (live <= 0) { commitRunning(); save(); render(); return; } // chrono terminé
+  if (live <= 0) {
+    const childId = e.childId;
+    commitRunning();                          // marque la punition comme faite, running=null
+    const next = orderedPending(childId)[0];  // enchaîne la suivante (plus ancienne)
+    if (next) state.running = { id: next.id, since: Date.now() };
+    save(); render();
+    return;
+  }
   const row = document.querySelector(`[data-pun-row="${e.id}"]`);
   if (row) {
     const t = row.querySelector("[data-rem]"); if (t) t.textContent = fmtDur(Math.ceil(live));
-    const f = row.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - live) / e.durationMin * 100)) + "%";
+    const pie = row.querySelector("[data-pie]"); if (pie) pie.innerHTML = pieSvg(pieFrac(e, live));
   }
 }
 
