@@ -433,22 +433,27 @@ function renderBonusBlock() {
 
 // ---- PUNITIONS -------------------------------------------------------------
 function renderPunitions() {
-  view.innerHTML = state.children.map(c => {
+  const pickerCol = c => `
+    <div class="picker-col ${c.color}">
+      <div class="picker-head">${c.emoji} Punir ${esc(c.name)}</div>
+      <div class="pun-list">${pickerCards(c)}</div>
+    </div>`;
+  const timerSec = c => {
     const total = pendingMin(c.id);
-    const lvl = colorLevel(c);
     return `
       <div class="child-card ${c.color}">
         <div class="child-head">
           <span class="badge">${c.emoji} ${esc(c.name)}</span>
-          <span class="lvl-pill lvl-${lvl}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
+          <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
         </div>
-        <h4 class="sec">⏳ Sablier — punitions en attente</h4>
         <div class="sess-list">${activeList(c)}</div>
-        <h4 class="sec">Donner une punition</h4>
-        <div class="pun-list">${pickerCards(c)}</div>
-        <p class="muted" style="text-align:center;margin-top:10px">Les punitions faites sont dans l'onglet 📒 Journal.</p>
       </div>`;
-  }).join("");
+  };
+  view.innerHTML = `
+    <div class="pun-pickers">${state.children.map(pickerCol).join("")}</div>
+    <h4 class="sec" style="text-align:center;font-size:1.05rem">⏳ Sabliers en cours</h4>
+    ${state.children.map(timerSec).join("")}
+    <p class="muted" style="text-align:center;margin-top:6px">Les punitions faites sont dans l'onglet 📒 Journal.</p>`;
 }
 
 function pickerCards(c) {

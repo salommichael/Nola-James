@@ -119,6 +119,17 @@ table.routine td.label .ic { font-size: 1.1rem; margin-right: 6px; }
 .active-pun .meta { font-size: .82rem; color: var(--ink-soft); }
 
 .pun-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+
+/* Deux colonnes de pickers (Nola rose à gauche, James bleu à droite) */
+.pun-pickers { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.picker-col { flex: 1 1 250px; min-width: 240px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; border: 3px solid var(--pink); }
+.picker-col.blue { border-color: var(--blue); }
+.picker-head { font-weight: 800; font-size: 1.05rem; text-align: center; margin-bottom: 10px; color: var(--pink-deep); }
+.picker-col.blue .picker-head { color: var(--blue-deep); }
+.picker-col .pun-list { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
+.picker-col .pun-pick { padding: 9px 6px; }
+.picker-col .pun-pick .ic { font-size: 1.7rem; }
+.picker-col .pun-pick .nm { font-size: .82rem; }
 .pun-pick { background: var(--card); border: 2px solid #eee; border-radius: 14px; padding: 12px; cursor: pointer; text-align: left; transition: border-color .12s, transform .1s; }
 .pun-pick:active { transform: scale(.97); }
 .pun-pick .ic { font-size: 1.5rem; }
