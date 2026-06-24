@@ -495,8 +495,9 @@ function activeRow(e) {
   const rem = liveRemaining(e);
   const by = e.by ? ` · par ${esc(e.by)}` : "";
   const title = `${fmtDur(e.durationMin)} · reste ${fmtDur(Math.ceil(rem))}`;
+  const pct = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100));
   return `<div class="sess-row ${running ? "current" : ""}" data-act="toggle-pun" data-id="${e.id}" data-pun-row="${e.id}" title="${running ? "Cliquer pour mettre en pause" : "Cliquer pour lancer le chrono"}">
-    <span class="play-ind">${running ? "⏸" : "▶️"}</span>
+    <span class="sess-fill" data-fill style="width:${pct}%"></span>
     <span class="ic">${e.icon}</span>
     <div class="grow">
       <div><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span> ${e.edited ? '<span class="edited">édité</span>' : ""}</div>
@@ -511,7 +512,6 @@ function activeRow(e) {
     </div>
     <div class="jright">
       ${statusBadge(e)}
-      <span data-pie>${pieSvg(pieFrac(e, rem), title)}</span>
       <span class="rem" data-rem>${fmtDur(Math.ceil(rem))}</span>
     </div>
   </div>`;
@@ -534,7 +534,7 @@ function tickRunning() {
   const row = document.querySelector(`[data-pun-row="${e.id}"]`);
   if (row) {
     const t = row.querySelector("[data-rem]"); if (t) t.textContent = fmtDur(Math.ceil(live));
-    const pie = row.querySelector("[data-pie]"); if (pie) pie.innerHTML = pieSvg(pieFrac(e, live));
+    const f = row.querySelector("[data-fill]"); if (f) f.style.width = Math.min(100, Math.max(0, (e.durationMin - live) / e.durationMin * 100)) + "%";
   }
 }
 
