@@ -486,6 +486,20 @@ function statusBadge(e) {
   return `<span class="stbadge ${cls}">${t}</span>`;
 }
 
+// Pie chart du temps écoulé d'une punition (part faite vs restante)
+function pieChart(e) {
+  let frac = 0;
+  if (e.status === "served") frac = 1;
+  else if (e.status === "in_progress") frac = e.durationMin ? (e.durationMin - e.remainingMin) / e.durationMin : 0;
+  frac = Math.max(0, Math.min(1, frac));
+  const r = 12, c = 2 * Math.PI * r, done = +(frac * c).toFixed(2);
+  const title = `${fmtDur(e.durationMin)}${e.status === "in_progress" ? " · reste " + fmtDur(Math.ceil(e.remainingMin)) : (e.status === "served" ? " · fait" : "")}`;
+  return `<svg class="pie" width="30" height="30" viewBox="0 0 30 30" role="img"><title>${title}</title>
+    <circle cx="15" cy="15" r="${r}" fill="none" stroke="#eceaf0" stroke-width="6"/>
+    <circle cx="15" cy="15" r="${r}" fill="none" stroke="var(--green)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${done} ${(c - done).toFixed(2)}" transform="rotate(-90 15 15)"/>
+  </svg>`;
+}
+
 function journalList(c) {
   const entries = state.punishmentLog.filter(e => e.childId === c.id);
   if (!entries.length) return `<p class="empty">Aucune punition enregistrée 🎉</p>`;
@@ -507,15 +521,15 @@ function journalRow(e) {
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`
     : `<button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
        <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>`;
-  const extra = e.status === "in_progress" ? ` · reste ${fmtDur(Math.ceil(e.remainingMin))}` : "";
   const by = e.by ? ` · par ${esc(e.by)}` : "";
   return `<div class="jrow ${e.status}">
     <span class="ic">${e.icon}</span>
     <div class="grow">
       <div><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span> ${e.edited ? '<span class="edited">édité</span>' : ""}</div>
-      <div class="muted">${fmtDur(e.durationMin)}${extra} · reçue ${fmtLogged(e)}${by}${e.comment ? " · 💬 " + esc(e.comment) : ""}</div>
+      <div class="muted">reçue ${fmtLogged(e)}${by}</div>
+      ${e.comment ? `<div class="jcomment">💬 <i>${esc(e.comment)}</i></div>` : ""}
     </div>
-    ${statusBadge(e)}
+    <div class="jright">${statusBadge(e)}${pieChart(e)}</div>
     <div class="jactions">${actions}</div>
   </div>`;
 }
