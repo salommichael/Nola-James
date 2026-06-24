@@ -500,8 +500,8 @@ function activeRow(e) {
   const rem = liveRemaining(e);
   const by = e.by ? ` · par ${esc(e.by)}` : "";
   const title = `${fmtDur(e.durationMin)} · reste ${fmtDur(Math.ceil(rem))}`;
-  return `<div class="sess-row ${running ? "current" : ""}" data-pun-row="${e.id}">
-    <button class="btn small ${running ? "ghost" : "green"} play" data-act="${running ? "pause-pun" : "start-pun"}" data-id="${e.id}" title="${running ? "Pause" : "Lancer ce chrono"}">${running ? "⏸" : "▶️"}</button>
+  return `<div class="sess-row ${running ? "current" : ""}" data-act="toggle-pun" data-id="${e.id}" data-pun-row="${e.id}" title="${running ? "Cliquer pour mettre en pause" : "Cliquer pour lancer le chrono"}">
+    <span class="play-ind">${running ? "⏸" : "▶️"}</span>
     <span class="ic">${e.icon}</span>
     <div class="grow">
       <div><b>${esc(e.typeLabel)}</b> <span class="size-tag size-${e.size}">${e.size}</span> ${e.edited ? '<span class="edited">édité</span>' : ""}</div>
@@ -956,14 +956,17 @@ view.addEventListener("click", (e) => {
     }
   }
   // ---- Punitions : séance ----
-  else if (a === "start-pun") {
+  else if (a === "toggle-pun") {
     const e = state.punishmentLog.find(x => x.id === id);
-    if (!e || e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) { toast("Rien à faire couler"); return; }
-    commitRunning();                          // fige (met en pause) le chrono actuellement en cours
-    state.running = { id: e.id, since: Date.now() };
+    if (!e || e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) return;
+    if (state.running && state.running.id === id) {
+      commitRunning(); state.running = null;   // c'était en cours → pause
+    } else {
+      commitRunning();                          // fige le chrono précédent
+      state.running = { id: e.id, since: Date.now() };
+    }
     commit();
   }
-  else if (a === "pause-pun") { commitRunning(); state.running = null; commit(); }
   // ---- Récompenses ----
   else if (a === "select-child") { selectedChild = childId; render(); }
   else if (a === "redeem") {

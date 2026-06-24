@@ -225,7 +225,10 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .edited { font-size: .66rem; background: #eee; color: #888; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
 .jactions { display: flex; gap: 4px; flex-wrap: wrap; }
 .sess-row { align-items: flex-start; }
-.sess-row .play { flex: none; margin-top: 2px; }
+.sess-row[data-act] { cursor: pointer; }
+.sess-row[data-act]:active { filter: brightness(0.97); }
+.play-ind { flex: none; font-size: 1.15rem; margin-top: 2px; line-height: 1; }
+.sess-row .jactions button { cursor: pointer; }
 .sess-row .grow { align-self: center; }
 .jright { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; }
 .jright .rem { font-size: .85rem; }
