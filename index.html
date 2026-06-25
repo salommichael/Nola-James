@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#fbc7da" />
   <title>Étoiles de Nola & James</title>
-  <link rel="stylesheet" href="styles.css?v=10" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.json" />
@@ -14,43 +13,17 @@
   <meta name="apple-mobile-web-app-title" content="Étoiles" />
 </head>
 <body>
-  <div id="sync-badge" class="sync-badge" title="Mode de sauvegarde"></div>
-  <button id="who-badge" class="who-badge" title="Qui utilise l'app ?"></button>
-  <div id="demo-banner" class="demo-banner hidden"></div>
-
-  <main id="view"></main>
-
-  <!-- Modale générique -->
-  <div id="modal" class="modal-overlay hidden">
-    <div class="modal-box">
-      <button class="modal-close" id="modal-close">✕</button>
-      <div id="modal-content"></div>
-    </div>
-  </div>
-
-  <!-- Dock du bas : rubriques (au-dessus) + sélecteur d'enfant (en dessous), toujours visibles -->
-  <div class="bottom-dock">
-    <nav class="tabs" id="tabs">
-      <button data-tab="routines" class="tab">⭐ Routines</button>
-      <button data-tab="punitions" class="tab active">⏳ Punitions</button>
-      <button data-tab="recompenses" class="tab">🎁 Récompenses</button>
-    </nav>
-    <nav class="bottom-bar">
-      <button class="dock-icon" data-gototab="journal" title="Journal">📒</button>
-      <div class="balances" id="balances"></div>
-      <button class="dock-icon" data-gototab="reglages" title="Réglages">⚙️</button>
-    </nav>
-  </div>
-
-  <!-- Pour activer la synchro entre appareils, remplis sync.js avec ta config Firebase -->
-  <!-- Chargement anti-cache : horodatage unique à chaque ouverture (toujours la dernière version) -->
+  <!-- Coquille minimale : tout (CSS, JS, structure) est chargé frais à chaque ouverture.
+       Plus aucun problème de cache : les futures évolutions n'ont pas besoin de toucher ce fichier. -->
   <script>
     (function () {
       var t = Date.now();
+      var l = document.createElement("link");
+      l.rel = "stylesheet"; l.href = "styles.css?t=" + t;
+      document.head.appendChild(l);
       ["sync.js", "app.js"].forEach(function (src) {
         var s = document.createElement("script");
-        s.src = src + "?t=" + t;
-        s.async = false;
+        s.src = src + "?t=" + t; s.async = false;
         document.body.appendChild(s);
       });
     })();

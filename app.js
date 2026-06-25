@@ -1,6 +1,30 @@
 const Storage = window.Storage;
 
 // ============================================================================
+//  STRUCTURE (chrome) — construite en JS pour être toujours à jour (anti-cache HTML)
+// ============================================================================
+document.body.innerHTML = `
+  <div id="sync-badge" class="sync-badge" title="Mode de sauvegarde"></div>
+  <button id="who-badge" class="who-badge" title="Qui utilise l'app ?"></button>
+  <div id="demo-banner" class="demo-banner hidden"></div>
+  <main id="view"></main>
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal-box"><button class="modal-close" id="modal-close">✕</button><div id="modal-content"></div></div>
+  </div>
+  <div class="bottom-dock">
+    <nav class="tabs" id="tabs">
+      <button data-tab="routines" class="tab">⭐ Routines</button>
+      <button data-tab="punitions" class="tab active">⏳ Punitions</button>
+      <button data-tab="recompenses" class="tab">🎁 Récompenses</button>
+    </nav>
+    <nav class="bottom-bar">
+      <button class="dock-icon" data-gototab="journal" title="Journal">📒</button>
+      <div class="balances" id="balances"></div>
+      <button class="dock-icon" data-gototab="reglages" title="Réglages">⚙️</button>
+    </nav>
+  </div>`;
+
+// ============================================================================
 //  DONNÉES PAR DÉFAUT
 // ============================================================================
 const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -307,6 +331,29 @@ function dateOfWeekday(d) {
   return dt.getTime();
 }
 function childName(id) { const c = child(id); return c ? c.name : (id || ""); }
+// Rattrapage : crée les entrées de journal manquantes pour les étoiles déjà validées cette semaine
+function backfillRoutineLog() {
+  const wk = weekKey();
+  const per = state.weekValidated[wk];
+  if (!per) return false;
+  let changed = false;
+  for (const childId in per) {
+    const c = child(childId); if (!c) continue;
+    const cells = per[childId];
+    for (const rid in cells) {
+      (cells[rid] || []).forEach((banked, d) => {
+        if (!banked) return;
+        const ts = dateOfWeekday(d);
+        if (!state.routineLog.some(e => e.childId === childId && e.routineId === rid && e.ts === ts)) {
+          const r = c.routines.find(x => x.id === rid);
+          state.routineLog.push({ ts, childId, child: c.name, routineId: rid, routine: r ? r.label : rid, stars: 1 });
+          changed = true;
+        }
+      });
+    }
+  }
+  return changed;
+}
 
 // ============================================================================
 //  PUNITIONS — helpers
@@ -1393,6 +1440,7 @@ const DEMO_TTL = 12 * 3600000; // la démo se réinitialise toutes les 12 h
   }
 
   state = hydrate(loaded);
+  backfillRoutineLog();
   render();
   // Sécurité : ne sauvegarder au démarrage que si on a vraiment chargé des données
   // (ou en démo locale), pour ne jamais écraser la vraie base avec des valeurs par défaut.
