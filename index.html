@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#fbc7da" />
   <title>Étoiles de Nola & James</title>
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.json" />
@@ -20,8 +20,6 @@
 
   <header class="app-header">
     <h1>⭐ Tableau de récompenses</h1>
-    <p class="subtitle">Je gagne des étoiles quand je fais des efforts ✨ et je les échange contre des récompenses 🎁</p>
-    <div class="balances" id="balances"></div>
   </header>
 
   <nav class="tabs" id="tabs">
@@ -45,6 +43,9 @@
   <footer class="app-footer">
     Chaque effort compte, chaque étoile te rapproche de tes récompenses 💖
   </footer>
+
+  <!-- Barre du bas : sélecteur d'enfant toujours visible -->
+  <nav class="bottom-bar"><div class="balances" id="balances"></div></nav>
 
   <!-- Pour activer la synchro entre appareils, remplis sync.js avec ta config Firebase -->
   <!-- Chargement anti-cache : horodatage unique à chaque ouverture (toujours la dernière version) -->
