@@ -457,7 +457,7 @@ function pickerCards(c) {
     return `<button class="pun-pick bg-${p.size}" data-act="give" data-child="${c.id}" data-pun="${p.id}">
       <div class="ic">${p.icon}</div>
       <div class="nm">${esc(p.label)}</div>
-      <div style="margin-top:6px"><span class="size-tag size-${p.size}">${p.size}</span> <span class="muted">${fmtDur(dur)}</span></div>
+      <div class="pun-foot"><span class="size-tag size-${p.size}">${p.size}</span> <span class="muted">${fmtDur(dur)}</span></div>
     </button>`;
   }).join("");
 }

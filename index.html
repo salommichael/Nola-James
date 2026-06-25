@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#fbc7da" />
   <title>Étoiles de Nola & James</title>
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="manifest.json" />
@@ -17,14 +17,6 @@
   <div id="sync-badge" class="sync-badge" title="Mode de sauvegarde"></div>
   <button id="who-badge" class="who-badge" title="Qui utilise l'app ?"></button>
   <div id="demo-banner" class="demo-banner hidden"></div>
-
-  <nav class="tabs" id="tabs">
-    <button data-tab="routines" class="tab active">⭐ Routines</button>
-    <button data-tab="punitions" class="tab">⏳ Punitions</button>
-    <button data-tab="recompenses" class="tab">🎁 Récompenses</button>
-    <button data-tab="journal" class="tab">📒 Journal</button>
-    <button data-tab="reglages" class="tab">⚙️ Réglages</button>
-  </nav>
 
   <main id="view"></main>
 
@@ -40,8 +32,17 @@
     Chaque effort compte, chaque étoile te rapproche de tes récompenses 💖
   </footer>
 
-  <!-- Barre du bas : sélecteur d'enfant toujours visible -->
-  <nav class="bottom-bar"><div class="balances" id="balances"></div></nav>
+  <!-- Dock du bas : rubriques (au-dessus) + sélecteur d'enfant (en dessous), toujours visibles -->
+  <div class="bottom-dock">
+    <nav class="tabs" id="tabs">
+      <button data-tab="routines" class="tab">⭐ Routines</button>
+      <button data-tab="punitions" class="tab active">⏳ Punitions</button>
+      <button data-tab="recompenses" class="tab">🎁 Récompenses</button>
+      <button data-tab="journal" class="tab">📒 Journal</button>
+      <button data-tab="reglages" class="tab">⚙️ Réglages</button>
+    </nav>
+    <nav class="bottom-bar"><div class="balances" id="balances"></div></nav>
+  </div>
 
   <!-- Pour activer la synchro entre appareils, remplis sync.js avec ta config Firebase -->
   <!-- Chargement anti-cache : horodatage unique à chaque ouverture (toujours la dernière version) -->

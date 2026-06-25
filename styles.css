@@ -26,12 +26,15 @@ body {
   background: linear-gradient(170deg, var(--pink-soft), var(--bg) 40%, var(--blue-soft));
   background-attachment: fixed;
   color: var(--ink);
-  padding-bottom: 96px;
+  padding-bottom: 158px;
   min-height: 100vh;
 }
 
-/* Barre du bas : sélecteur d'enfant, toujours visible */
-.bottom-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 12px; background: rgba(255,247,251,.96); backdrop-filter: blur(8px); box-shadow: 0 -3px 14px rgba(150,120,160,.18); }
+/* Dock du bas : rubriques (au-dessus) + enfants (en dessous), toujours visibles */
+.bottom-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; box-shadow: 0 -3px 16px rgba(150,120,160,.2); }
+.bottom-dock .tabs { position: static; top: auto; padding: 8px 8px 6px; flex-wrap: nowrap; overflow-x: auto; box-shadow: none; background: rgba(255,247,251,.97); }
+.bottom-dock .tab { flex: 0 0 auto; }
+.bottom-bar { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 12px; background: rgba(255,247,251,.97); }
 .bottom-bar .balances { margin: 0; }
 
 .app-header { text-align: center; padding: 22px 16px 8px; }
@@ -138,6 +141,8 @@ table.routine td.label .ic { font-size: 1.1rem; margin-right: 6px; }
 .picker-col .pun-list { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
 .picker-col .pun-pick { padding: 9px 6px; }
 .picker-col .pun-pick .ic { font-size: 3.4rem; display: block; text-align: center; line-height: 1.1; }
+.pun-pick .nm { margin-top: 4px; }
+.pun-pick .pun-foot { margin-top: auto; padding-top: 8px; display: flex; gap: 6px; align-items: center; justify-content: center; }
 .picker-col .pun-pick .nm { font-size: .82rem; }
 .pun-pick { background: var(--card); border: 2px solid #eee; border-radius: 14px; padding: 12px; cursor: pointer; text-align: center; transition: border-color .12s, transform .1s; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
 .pun-pick:active { transform: scale(.97); }
