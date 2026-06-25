@@ -434,8 +434,7 @@ function renderBalances() {
     const sel = selectedChild === c.id ? `selected ${c.color}` : "";
     return `
     <button class="balance-pill ${sel}" data-act="select-child" data-child="${c.id}">
-      <span class="avatar" style="background:${c.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'}">${c.emoji}</span>
-      <span>${esc(c.name)} <small>${c.age} ans</small><br><span class="stars">⭐ ${c.stars}</span> ${punTag}</span>
+      <span>${esc(c.name)}<br><span class="stars">⭐ ${c.stars}</span> ${punTag}</span>
     </button>`;
   }).join("");
 }
