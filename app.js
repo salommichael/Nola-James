@@ -370,6 +370,7 @@ function render() {
   updateWhoBadge();
   updateDemoBanner();
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === currentTab));
+  document.querySelectorAll("[data-gototab]").forEach(b => b.classList.toggle("active", b.dataset.gototab === currentTab));
   if (currentTab === "routines") renderRoutines();
   else if (currentTab === "punitions") renderPunitions();
   else if (currentTab === "recompenses") renderRecompenses();
@@ -445,7 +446,7 @@ function renderPunitions() {
   const total = pendingMin(c.id);
   view.innerHTML = `
     <div class="picker-col ${c.color}">
-      <div class="picker-head">${c.emoji} Punir ${esc(c.name)}</div>
+      <div class="picker-head">Punition</div>
       <div class="pun-list">${pickerCards(c)}</div>
     </div>
     <div class="child-card ${c.color}">
@@ -1316,7 +1317,7 @@ document.getElementById("tabs").addEventListener("click", e => {
   currentTab = b.dataset.tab; window.scrollTo(0, 0); render();
 });
 
-// Switch d'enfant via les pastilles du haut : même onglet, même position de page.
+// Switch d'enfant via les pastilles : même onglet, même position de page.
 document.getElementById("balances").addEventListener("click", e => {
   const b = e.target.closest("[data-act='select-child']"); if (!b) return;
   if (selectedChild === b.dataset.child) return;
@@ -1324,6 +1325,12 @@ document.getElementById("balances").addEventListener("click", e => {
   selectedChild = b.dataset.child;
   render();
   window.scrollTo(0, y);
+});
+
+// Icônes Journal / Réglages (globaux) dans la barre du bas.
+document.querySelector(".bottom-bar").addEventListener("click", e => {
+  const b = e.target.closest("[data-gototab]"); if (!b) return;
+  currentTab = b.dataset.gototab; window.scrollTo(0, 0); render();
 });
 
 // ---- Profil parent (qui suis-je) ----

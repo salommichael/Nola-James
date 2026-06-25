@@ -36,6 +36,12 @@ body {
 .bottom-dock .tab { flex: 0 0 auto; }
 .bottom-bar { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 12px; background: rgba(255,247,251,.97); }
 .bottom-bar .balances { margin: 0; }
+.bottom-bar { gap: 10px; }
+.dock-icon { border: none; cursor: pointer; width: 42px; height: 42px; border-radius: 50%; font-size: 1.3rem; background: #ece7f5; display: grid; place-items: center; flex: none; box-shadow: var(--shadow); }
+.dock-icon:active { transform: scale(.92); }
+.dock-icon.active { box-shadow: 0 0 0 3px var(--pink-deep); }
+body[data-theme="blue"] .dock-icon.active { box-shadow: 0 0 0 3px var(--blue-deep); }
+body[data-theme="blue"] .dock-icon { background: #e3f1fd; }
 
 /* Thème par enfant : Nola rose, James bleu — tons légers, contextes dissociés */
 body[data-theme="pink"] { background: linear-gradient(170deg, #fde4ee, #fff7fb 55%); }

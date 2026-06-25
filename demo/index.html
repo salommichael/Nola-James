@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#fbc7da" />
   <title>Démo — Étoiles de Nola & James</title>
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -34,10 +34,12 @@
       <button data-tab="routines" class="tab">⭐ Routines</button>
       <button data-tab="punitions" class="tab active">⏳ Punitions</button>
       <button data-tab="recompenses" class="tab">🎁 Récompenses</button>
-      <button data-tab="journal" class="tab">📒 Journal</button>
-      <button data-tab="reglages" class="tab">⚙️ Réglages</button>
     </nav>
-    <nav class="bottom-bar"><div class="balances" id="balances"></div></nav>
+    <nav class="bottom-bar">
+      <button class="dock-icon" data-gototab="journal" title="Journal">📒</button>
+      <div class="balances" id="balances"></div>
+      <button class="dock-icon" data-gototab="reglages" title="Réglages">⚙️</button>
+    </nav>
   </div>
 
   <!-- Chargement anti-cache : horodatage unique à chaque ouverture -->
