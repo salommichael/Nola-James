@@ -505,6 +505,7 @@ function activeRow(e) {
       ${e.comment ? `<div class="jcomment">💬 <i>${esc(e.comment)}</i></div>` : ""}
       <div class="jactions">
         <button class="btn small ghost" data-act="edit-log" data-id="${e.id}">✏️</button>
+        <button class="btn small" style="background:#e3f1fd;color:#2c6fb0" data-act="reset-pun" data-id="${e.id}" title="Remettre le sablier à zéro">🔄</button>
         <button class="btn small green" data-act="mark-served" data-id="${e.id}">Fait ✓</button>
         <button class="btn small" style="background:#eee;color:#777" data-act="pardon-log" data-id="${e.id}">Pardon</button>
         <button class="btn small danger" data-act="del-log" data-id="${e.id}">🗑</button>
@@ -963,6 +964,17 @@ view.addEventListener("click", (e) => {
     }
     commit();
   }
+  else if (a === "reset-pun") {
+    const e = state.punishmentLog.find(x => x.id === id);
+    if (!e) return;
+    openConfirm("Remettre le sablier à zéro ?",
+      `« ${esc(e.typeLabel)} » repartira de <b>${fmtDur(e.durationMin)}</b> (toute la progression est effacée).`,
+      () => {
+        if (state.running && state.running.id === id) state.running = null;
+        e.remainingMin = e.durationMin; e.status = "pending"; e.servedTs = null;
+        toast("Sablier remis à zéro"); commit();
+      }, "🔄 Remettre à zéro");
+  }
   // ---- Récompenses ----
   else if (a === "select-child") { selectedChild = childId; render(); }
   else if (a === "redeem") {
@@ -1072,6 +1084,15 @@ document.getElementById("modal-close").onclick = closeModal;
 modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
 function closeModal() { modal.classList.add("hidden"); }
 function openModal(html) { modalContent.innerHTML = html; modal.classList.remove("hidden"); }
+function openConfirm(title, msgHtml, onYes, yesLabel) {
+  openModal(`<h3>${title}</h3><p>${msgHtml}</p>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn ghost" id="cf-no" style="flex:1">Annuler</button>
+      <button class="btn danger" id="cf-yes" style="flex:1.4">${yesLabel || "Confirmer"}</button>
+    </div>`);
+  modalContent.querySelector("#cf-no").onclick = closeModal;
+  modalContent.querySelector("#cf-yes").onclick = () => { closeModal(); onYes(); };
+}
 function segSelect(wrap, onChange) {
   wrap.querySelectorAll("button").forEach(b => b.onclick = () => {
     wrap.querySelectorAll("button").forEach(x => x.classList.remove("on"));
