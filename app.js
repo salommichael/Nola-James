@@ -355,6 +355,7 @@ function commitRunning() {
 const view = document.getElementById("view");
 
 function render() {
+  document.body.dataset.theme = (child(selectedChild) || {}).color || "pink";
   renderBalances();
   updateWhoBadge();
   updateDemoBanner();
@@ -382,7 +383,6 @@ function renderBalances() {
 // ---- ROUTINES --------------------------------------------------------------
 function renderRoutines() {
   view.innerHTML = `<div style="text-align:center;margin-bottom:10px">
-      <p class="muted" style="margin:0 0 8px">Semaine ${weekKey()} · clique une étoile quand l'enfant réussit</p>
       <button class="btn ghost small" data-act="show-history">📜 Historique des étoiles</button>
     </div>` +
     [child(selectedChild)].map(c => {
@@ -420,7 +420,6 @@ function renderRoutines() {
 function renderBonusBlock() {
   return `<div class="child-card" style="border:2px dashed var(--gold)">
     <div class="child-head"><span class="badge" style="background:#fff6d8;color:#b9870b">✨ Étoiles spontanées</span></div>
-    <p class="muted">Pour récompenser un bon geste sur le moment. Une raison sera demandée (obligatoire).</p>
     ${[child(selectedChild)].map(c => `
       <div class="row" style="border:none">
         <span class="avatar" style="width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:1.2rem;background:${c.color === 'pink' ? 'var(--pink-soft)' : 'var(--blue-soft)'}">${c.emoji}</span>
@@ -447,8 +446,7 @@ function renderPunitions() {
         <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
       </div>
       <div class="sess-list">${activeList(c)}</div>
-    </div>
-    <p class="muted" style="text-align:center;margin-top:6px">Les punitions faites sont dans l'onglet 📒 Journal.</p>`;
+    </div>`;
 }
 
 function pickerCards(c) {
@@ -551,7 +549,7 @@ function renderRecompenses() {
       </button>`;
     }).join("");
     return `<div class="tier tier-${t}">
-      <div class="tier-head">⭐ ${TIER_INFO[t].title} <span class="muted">— ${TIER_INFO[t].sub}</span></div>
+      <div class="tier-head">⭐ ${TIER_INFO[t].title}</div>
       <div class="reward-grid">${items || '<p class="muted">Aucune récompense</p>'}</div>
     </div>`;
   }).join("");
@@ -641,7 +639,6 @@ function renderJournal() {
   const jr = journalRows(), rr = routineRows();
   const c0 = child(selectedChild);
   view.innerHTML = `
-    <p class="muted" style="text-align:center;margin-bottom:10px">Journal de ${c0.emoji} <b>${esc(c0.name)}</b> — change d'enfant via les pastilles en haut</p>
     <div class="setting-block">
       <div class="jhead">
         <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
@@ -761,13 +758,11 @@ function renderReglages() {
           <span class="lvl-pill lvl-orange">🟠</span><input type="number" step="0.25" class="num" value="${c.thresholds.orange}" data-act="edit-thr" data-child="${c.id}" data-lvl="orange" />
           <span class="lvl-pill lvl-red">🔴</span><input type="number" step="0.25" class="num" value="${c.thresholds.red}" data-act="edit-thr" data-child="${c.id}" data-lvl="red" />
         </div>
-        <span class="muted">En dessous du 🟡 = vert. Ex : 🟡 1, 🟠 2, 🔴 4 → rouge dès 4 h de punitions en attente.</span>
       </div>
       <div class="field">
         <label>Étoiles (solde)</label>
         <div class="row" style="border:none">
           <input type="number" class="num" value="${c.stars}" data-act="edit-stars" data-child="${c.id}" />
-          <span class="muted">correction manuelle si besoin</span>
         </div>
       </div>
       <label class="muted" style="font-weight:700">Actions de la routine</label>
@@ -787,7 +782,6 @@ function renderReglages() {
   const punBlock = `
     <div class="setting-block">
       <h3>⏳ Punitions (catalogue)</h3>
-      <p class="muted">Taille S = mineur · M = modéré · L = grave. La durée dépend de l'enfant (réglée ci-dessus). Supprimer un type ici n'efface pas les punitions déjà loggées.</p>
       <div class="sortable" data-sortable="punishments">
       ${state.punishments.map(p => `
         <div class="row" data-sort-id="${p.id}">
@@ -827,7 +821,6 @@ function renderReglages() {
   const parentsBlock = `
     <div class="setting-block">
       <h3>👤 Parents</h3>
-      <p class="muted">Sert à savoir qui a mis chaque punition. Chaque appareil choisit son profil en haut à gauche (👤). Sans mot de passe.</p>
       ${state.parents.map((nm, i) => `
         <div class="row">
           <input type="text" class="grow" value="${esc(nm)}" data-act="edit-parent" data-idx="${i}" />
@@ -839,14 +832,12 @@ function renderReglages() {
   const demoBlock = `
     <div class="setting-block">
       <h3>🧪 Mode démo</h3>
-      <p class="muted">Pour montrer l'app sans toucher aux vraies données. Tout reste dans un bac à sable local, non synchronisé.</p>
       <div class="row" style="border:none">
         ${Storage.demo
           ? `<button class="btn green" data-act="exit-demo">✓ Quitter le mode démo (revenir aux vraies données)</button>`
           : `<button class="btn ghost" data-act="enter-demo">🧪 Activer le mode démo (sur cet appareil)</button>`}
       </div>
       <label class="muted" style="font-weight:700;display:block;margin-top:12px">Envoyer une démo à des copains</label>
-      <p class="muted">Ce lien ouvre une démo isolée avec des données d'exemple. Tes copains peuvent tout tester : <b>ça ne touche jamais la base de tes enfants</b> (aucune connexion à la vraie base).</p>
       <div class="row" style="border:none;flex-wrap:wrap">
         <button class="btn blue small" data-act="copy-demo-link">🔗 Copier le lien démo</button>
         <code class="muted" style="word-break:break-all">${esc(demoLink())}</code>
@@ -856,7 +847,6 @@ function renderReglages() {
   const dataBlock = `
     <div class="setting-block">
       <h3>💾 Données & remise à zéro</h3>
-      <p class="muted">Sauvegarde complète, ou effacement <b>ciblé par catégorie</b> (chaque action demande confirmation).</p>
       <div class="row" style="border:none;flex-wrap:wrap">
         <button class="btn ghost small" data-act="export">⬇️ Exporter (sauvegarde)</button>
         <button class="btn ghost small" data-act="import">⬆️ Importer</button>
@@ -1332,7 +1322,6 @@ function updateWhoBadge() {
 function openParentPicker() {
   const cur = currentParent();
   openModal(`<h3>Qui utilise l'app ?</h3>
-    <p class="muted">Sert à estampiller les punitions que tu mets. Sans mot de passe, modifiable à tout moment.</p>
     <div class="seg" id="who-seg">${state.parents.map(p => `<button data-v="${esc(p)}" class="${p === cur ? "on" : ""}">${esc(p)}</button>`).join("")}</div>`);
   modalContent.querySelectorAll("#who-seg button").forEach(b => b.onclick = () => {
     localStorage.setItem("rnj_parent", b.dataset.v);

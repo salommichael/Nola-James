@@ -37,6 +37,18 @@ body {
 .bottom-bar { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 12px; background: rgba(255,247,251,.97); }
 .bottom-bar .balances { margin: 0; }
 
+/* Thème par enfant : Nola rose, James bleu — tons légers, contextes dissociés */
+body[data-theme="pink"] { background: linear-gradient(170deg, #fde4ee, #fff7fb 55%); }
+body[data-theme="blue"] { background: linear-gradient(170deg, #e3f1fd, #f6fbff 55%); }
+body[data-theme="pink"] .bottom-dock .tabs, body[data-theme="pink"] .bottom-bar { background: rgba(255,243,249,.97); }
+body[data-theme="blue"] .bottom-dock .tabs, body[data-theme="blue"] .bottom-bar { background: rgba(238,247,255,.97); }
+body[data-theme="pink"] .tab.active { background: var(--pink-deep); }
+body[data-theme="blue"] .tab.active { background: var(--blue-deep); }
+body[data-theme="blue"] .btn.primary { background: var(--blue-deep); }
+body[data-theme="blue"] .btn.ghost { background: var(--blue-soft); color: var(--blue-deep); }
+body[data-theme="blue"] .sec { color: var(--blue-deep); }
+body[data-theme="pink"] .sec { color: var(--pink-deep); }
+
 .app-header { text-align: center; padding: 22px 16px 8px; }
 .app-header h1 { margin: 0; font-size: 1.7rem; color: var(--pink-deep); letter-spacing: .5px; }
 .subtitle { margin: 6px auto 14px; max-width: 520px; color: var(--ink-soft); font-size: .95rem; }
