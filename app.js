@@ -581,6 +581,10 @@ function tickRunning() {
   const live = e.remainingMin - (Date.now() - r.since) / 60000;
   if (live <= 0) {
     const childId = e.childId;
+    const row = document.querySelector(`[data-pun-row="${e.id}"]`);
+    if (row) { const r = row.getBoundingClientRect(); celebrate(r.left + r.width / 2, r.top + r.height / 2, "⏰"); }
+    else celebrate(window.innerWidth / 2, window.innerHeight / 2, "⏰");
+    sndDone();
     commitRunning();                          // marque la punition comme faite, running=null
     const next = orderedPending(childId)[0];  // enchaîne la suivante (plus ancienne)
     if (next) state.running = { id: next.id, since: Date.now() };
@@ -923,7 +927,15 @@ function renderReglages() {
       </div>
     </div>`;
 
-  view.innerHTML = childrenBlocks + punBlock + rewBlock + parentsBlock + demoBlock + dataBlock;
+  const fxBlock = `
+    <div class="setting-block">
+      <h3>🔔 Sons & animations</h3>
+      <div class="row" style="border:none">
+        <button class="btn ${fxOn() ? "green" : "ghost"} small" data-act="toggle-fx">${fxOn() ? "🔔 Activés" : "🔕 Désactivés"}</button>
+        <span class="muted">réglage propre à cet appareil</span>
+      </div>
+    </div>`;
+  view.innerHTML = childrenBlocks + punBlock + rewBlock + parentsBlock + fxBlock + demoBlock + dataBlock;
   setupSortables();
 }
 
@@ -942,6 +954,7 @@ view.addEventListener("click", (e) => {
     const arr = cells[rid] || (cells[rid] = [false, false, false, false, false, false, false]);
     const wasOn = arr[day];
     arr[day] = !wasOn;
+    if (!wasOn) { const r = el.getBoundingClientRect(); celebrate(r.left + r.width / 2, r.top + r.height / 2, "⭐"); sndStar(); }
     // décocher une étoile déjà mise en banque → on la retire aussi de la banque
     if (wasOn) {
       const v = weekValCells(childId)[rid];
@@ -971,6 +984,7 @@ view.addEventListener("click", (e) => {
     }
     if (!added) { toast("Rien à valider ce jour (déjà validé ou aucune étoile)"); return; }
     c.stars += added;
+    { const r = el.getBoundingClientRect(); celebrate(r.left + r.width / 2, r.top, "✅"); sndStar(); }
     toast(`+${added} ⭐ pour ${c.name} (${DAYS[day]} validé)`);
     commit();
   }
@@ -1018,6 +1032,7 @@ view.addEventListener("click", (e) => {
   }
   // ---- Punitions : séance ----
   else if (a === "toggle-pun") {
+    ac(); // débloque l'audio (geste utilisateur) pour le son de fin de sablier
     const e = state.punishmentLog.find(x => x.id === id);
     if (!e || e.remainingMin <= 0 || !(e.status === "pending" || e.status === "in_progress")) return;
     if (state.running && state.running.id === id) {
@@ -1048,6 +1063,7 @@ view.addEventListener("click", (e) => {
     if (!confirm(`${c.name} échange ${r.cost} ⭐ contre « ${r.label} » ?\nSolde restant : ${c.stars - r.cost} ⭐`)) return;
     c.stars -= r.cost;
     state.log.unshift({ ts: Date.now(), type: "récompense", child: c.name, label: r.label, n: -r.cost });
+    { const rc = el.getBoundingClientRect(); celebrate(rc.left + rc.width / 2, rc.top + rc.height / 2, "🎁"); sndReward(); }
     toast(`🎁 ${r.label} pour ${c.name} !`);
     commit();
   }
@@ -1080,6 +1096,7 @@ view.addEventListener("click", (e) => {
     toast("Retour aux vraies données ✓");
     render();
   }
+  else if (a === "toggle-fx") { localStorage.setItem("rnj_fx", fxOn() ? "off" : "on"); render(); if (fxOn()) sndStar(); }
   else if (a === "copy-demo-link") {
     const url = demoLink();
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1366,6 +1383,40 @@ function toast(msg) {
   document.body.appendChild(t);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.remove(), 2200);
+}
+
+// ---- Feedback ludique (sons + petites animations), réglable par appareil ----
+function fxOn() { return localStorage.getItem("rnj_fx") !== "off"; }
+let _ac;
+function ac() {
+  try { if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === "suspended") _ac.resume(); } catch (e) {}
+  return _ac;
+}
+function tones(seq) {
+  if (!fxOn()) return;
+  const ctx = ac(); if (!ctx) return;
+  const t0 = ctx.currentTime;
+  seq.forEach(([f, start, dur]) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine"; o.frequency.value = f;
+    o.connect(g); g.connect(ctx.destination);
+    const s = t0 + start;
+    g.gain.setValueAtTime(0.0001, s);
+    g.gain.exponentialRampToValueAtTime(0.22, s + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+    o.start(s); o.stop(s + dur + 0.03);
+  });
+}
+function sndStar() { tones([[880, 0, 0.16], [1320, 0.08, 0.18]]); }
+function sndReward() { tones([[660, 0, 0.14], [990, 0.1, 0.16], [1320, 0.2, 0.22]]); }
+function sndDone() { tones([[1175, 0, 0.2], [784, 0.16, 0.28]]); }
+function celebrate(x, y, txt) {
+  if (!fxOn()) return;
+  const el = document.createElement("div");
+  el.className = "fx-float"; el.textContent = txt;
+  el.style.left = x + "px"; el.style.top = y + "px";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 950);
 }
 
 // ============================================================================

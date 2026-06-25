@@ -230,6 +230,8 @@ table.routine td.label .ic { font-size: 1.1rem; margin-right: 6px; }
 .empty { text-align: center; color: var(--ink-soft); padding: 24px; }
 .muted { color: var(--ink-soft); font-size: .85rem; }
 .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 14px; font-weight: 600; z-index: 200; box-shadow: var(--shadow); animation: pop .25s; }
+.fx-float { position: fixed; transform: translate(-50%, -50%); font-size: 2.2rem; pointer-events: none; z-index: 300; animation: fxrise .95s ease-out forwards; }
+@keyframes fxrise { 0% { opacity: 0; transform: translate(-50%, -10%) scale(.4); } 22% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -170%) scale(1); } }
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } }
 /* Punitions v2 : niveaux, séance, journal */
 .pun-pick.bg-S { background: #fef7d6; border-color: #f3e3a0; }
