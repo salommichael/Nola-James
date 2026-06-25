@@ -55,6 +55,18 @@ body[data-theme="blue"] .btn.ghost { background: var(--blue-soft); color: var(--
 body[data-theme="blue"] .sec { color: var(--blue-deep); }
 body[data-theme="pink"] .sec { color: var(--pink-deep); }
 
+/* Journal & Réglages (globaux) : thème gris clair neutre */
+body[data-theme="neutral"] { background: linear-gradient(170deg, #eef0f3, #f7f8fa 55%); }
+body[data-theme="neutral"] .bottom-dock .tabs, body[data-theme="neutral"] .bottom-bar { background: rgba(244,245,247,.97); }
+body[data-theme="neutral"] .tab.active { background: #6c6c78; }
+body[data-theme="neutral"] .btn.primary { background: #6c6c78; }
+body[data-theme="neutral"] .btn.ghost { background: #e9eaee; color: #555; }
+body[data-theme="neutral"] .dock-icon.active { box-shadow: 0 0 0 3px #6c6c78; }
+body[data-theme="neutral"] .data-tbl th { background: #eceef1; color: #555; }
+body[data-theme="neutral"] .col-sort { color: #555; }
+body[data-theme="neutral"] .col-filter.on { background: #6c6c78; }
+body[data-theme="neutral"] .sec { color: var(--ink); }
+
 .app-header { text-align: center; padding: 22px 16px 8px; }
 .app-header h1 { margin: 0; font-size: 1.7rem; color: var(--pink-deep); letter-spacing: .5px; }
 .subtitle { margin: 6px auto 14px; max-width: 520px; color: var(--ink-soft); font-size: .95rem; }

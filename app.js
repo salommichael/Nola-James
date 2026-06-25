@@ -365,7 +365,9 @@ function commitRunning() {
 const view = document.getElementById("view");
 
 function render() {
-  document.body.dataset.theme = (child(selectedChild) || {}).color || "pink";
+  document.body.dataset.theme = (currentTab === "journal" || currentTab === "reglages")
+    ? "neutral"
+    : ((child(selectedChild) || {}).color || "pink");
   renderBalances();
   updateWhoBadge();
   updateDemoBanner();
