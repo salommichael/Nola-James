@@ -133,7 +133,7 @@ table.routine td.label .ic { font-size: 1.1rem; margin-right: 6px; }
 .picker-col.blue .picker-head { color: var(--blue-deep); }
 .picker-col .pun-list { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
 .picker-col .pun-pick { padding: 9px 6px; }
-.picker-col .pun-pick .ic { font-size: 1.7rem; }
+.picker-col .pun-pick .ic { font-size: 3.4rem; display: block; text-align: center; line-height: 1.1; }
 .picker-col .pun-pick .nm { font-size: .82rem; }
 .pun-pick { background: var(--card); border: 2px solid #eee; border-radius: 14px; padding: 12px; cursor: pointer; text-align: left; transition: border-color .12s, transform .1s; }
 .pun-pick:active { transform: scale(.97); }
@@ -310,7 +310,7 @@ table.routine th.day { font-size: .8rem; }
 .reward .nm { font-size: .92rem; }
 .reward .cost { font-size: .95rem; }
 .tier-head { font-size: 1.15rem; }
-.sess-row .ic { font-size: 1.8rem; }
+.sess-row .ic { font-size: 3.6rem; align-self: center; line-height: 1; flex: none; }
 .jrow .ic { font-size: 1.7rem; }
 
 @media (max-width: 480px) { .app-header h1 { font-size: 1.5rem; } .lvl-pill { margin-left: 0; } .star-cell { width: 40px; height: 40px; font-size: 1.3rem; } }
