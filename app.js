@@ -665,9 +665,20 @@ function getJournalView() {
   return rows;
 }
 
-// Modale de filtre d'une colonne (façon tableur)
+// Lignes filtrées par tous les filtres SAUF celui de la colonne donnée (pour les filtres en cascade)
+function rowsFilteredExcept(exceptCol) {
+  let rows = journalRows();
+  for (const col in jFilters) {
+    if (col === exceptCol) continue;
+    const allowed = jFilters[col];
+    if (allowed) rows = rows.filter(r => allowed.has(String(r[col] == null ? "" : r[col])));
+  }
+  return rows;
+}
+
+// Modale de filtre d'une colonne (façon tableur : options selon les autres filtres actifs)
 function openColFilter(col) {
-  const values = [...new Set(journalRows().map(r => String(r[col] == null ? "" : r[col])))].sort((a, b) => a.localeCompare(b, "fr"));
+  const values = [...new Set(rowsFilteredExcept(col).map(r => String(r[col] == null ? "" : r[col])))].sort((a, b) => a.localeCompare(b, "fr"));
   const active = jFilters[col];
   openModal(`<h3>Filtrer : ${esc(col)}</h3>
     <div class="flt-actions"><button class="btn ghost small" id="flt-all">Tout cocher</button> <button class="btn ghost small" id="flt-none">Tout décocher</button></div>
