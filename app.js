@@ -500,7 +500,7 @@ function renderPunitions() {
     <div class="child-card ${c.color}">
       <div class="child-head">
         <span class="badge">${c.emoji} ${esc(c.name)}</span>
-        <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0 min"} en attente</span>
+        <span class="lvl-pill lvl-${colorLevel(c)}">⏳ ${total > 0 ? fmtDur(Math.ceil(total)) : "0m"} en attente</span>
       </div>
       <div class="sess-list">${activeList(c)}</div>
     </div>`;
@@ -1348,7 +1348,7 @@ function doImport() {
 function fmtDur(min) {
   min = Math.round(min);
   if (min >= 60) { const h = Math.floor(min / 60), m = min % 60; return h + "h" + (m ? String(m).padStart(2, "0") : ""); }
-  return min + " min";
+  return min + "m";
 }
 function fmtClock(min) {
   let s = Math.max(0, Math.round(min * 60));
