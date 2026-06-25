@@ -70,7 +70,8 @@ const DEFAULT_STATE = {
   ],
   week: {},            // { weekKey: { childId: { routineId: [7 bool] } } } — étoiles cochées
   weekValidated: {},   // { weekKey: { childId: { routineId: [7 bool] } } } — étoiles déjà mises en banque (par jour)
-  starHistory: {},     // { weekKey: { childId: { total, ts, byRoutine: { id: {label, count} } } } }
+  routineLog: [],      // historique détaillé : { ts (vraie date du jour), childId, child, routineId, routine, stars }
+  starHistory: {},     // (déprécié) ancien historique hebdomadaire
   punishmentLog: [],   // journal de punitions (voir structure dans "give")
   running: null,       // un seul chrono à la fois : { id, since } (id de la punition qui coule)
   log: [],             // historique étoiles (validations + récompenses)
@@ -235,6 +236,7 @@ function hydrate(loaded) {
   const s = { ...base, ...loaded };
   s.week = loaded.week || {};
   s.weekValidated = loaded.weekValidated || {};
+  s.routineLog = loaded.routineLog || [];
   s.starHistory = loaded.starHistory || {};
   s.log = loaded.log || [];
   s.punishmentLog = loaded.punishmentLog || [];
@@ -297,6 +299,14 @@ function weekValidatedTotal(childId) { // étoiles déjà mises en banque
   for (const k in v) n += v[k].filter(Boolean).length;
   return n;
 }
+// Vraie date (timestamp) du jour d'index d (lundi=0) de la semaine courante
+function dateOfWeekday(d) {
+  const now = new Date();
+  const todayIdx = (now.getDay() + 6) % 7;
+  const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - todayIdx + d, 12, 0, 0, 0);
+  return dt.getTime();
+}
+function childName(id) { const c = child(id); return c ? c.name : (id || ""); }
 
 // ============================================================================
 //  PUNITIONS — helpers
@@ -382,9 +392,7 @@ function renderBalances() {
 
 // ---- ROUTINES --------------------------------------------------------------
 function renderRoutines() {
-  view.innerHTML = `<div style="text-align:center;margin-bottom:10px">
-      <button class="btn ghost small" data-act="show-history">📜 Historique des étoiles</button>
-    </div>` +
+  view.innerHTML =
     [child(selectedChild)].map(c => {
       const cells = weekCells(c.id);
       const vcells = weekValCells(c.id);
@@ -563,114 +571,107 @@ function renderRecompenses() {
 const STATUS_TEXT = { pending: "En attente", in_progress: "En cours", served: "Fait", pardoned: "Pardonné" };
 function fmtDate(ts) { const d = new Date(ts); return String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0") + "." + d.getFullYear(); }
 
-// Lignes "Punitions & récompenses" (tout, trié du plus récent au plus ancien)
+// ---- JOURNAL UNIQUE (tous les enfants, fusion routines + récompenses + punitions) ----
+const J_COLS = ["Date", "Enfant", "Catégorie", "Détail", "Taille", "Montant", "Statut", "Par", "Fait le", "Commentaire"];
+let jSort = { col: "Date", dir: "desc" };
+let jFilters = {};
+
 function journalRows() {
   const rows = [];
-  const cid = selectedChild, cname = child(cid) ? child(cid).name : "";
-  state.punishmentLog.filter(e => e.childId === cid).forEach(e => rows.push({
-    ts: e.loggedTs,
-    Date: fmtLogged(e),
-    Enfant: child(e.childId) ? child(e.childId).name : (e.childId || ""),
-    "Catégorie": "Punition",
-    "Détail": e.typeLabel,
-    Taille: e.size,
-    Montant: fmtDur(e.durationMin),
-    Statut: STATUS_TEXT[e.status] || e.status,
-    Par: e.by || "",
-    "Fait le": e.servedTs ? fmtDate(e.servedTs) : "",
-    Commentaire: e.comment || ""
+  state.punishmentLog.forEach(e => rows.push({
+    ts: e.loggedTs, Date: fmtLogged(e), Enfant: childName(e.childId), "Catégorie": "Punition",
+    "Détail": e.typeLabel, Taille: e.size, Montant: fmtDur(e.durationMin), Statut: STATUS_TEXT[e.status] || e.status,
+    Par: e.by || "", "Fait le": e.servedTs ? fmtDate(e.servedTs) : "", Commentaire: e.comment || ""
   }));
-  (state.log || []).filter(l => l.type === "récompense" && l.child === cname).forEach(l => rows.push({
-    ts: l.ts,
-    Date: fmtDate(l.ts),
-    Enfant: l.child,
-    "Catégorie": "Récompense",
-    "Détail": l.label,
-    Taille: "",
-    Montant: l.n + " ⭐",
-    Statut: "Échangé",
-    Par: "",
-    "Fait le": "",
-    Commentaire: ""
+  (state.log || []).filter(l => l.type === "récompense").forEach(l => rows.push({
+    ts: l.ts, Date: fmtDate(l.ts), Enfant: l.child, "Catégorie": "Récompense", "Détail": l.label,
+    Taille: "", Montant: l.n + " ⭐", Statut: "Échangé", Par: "", "Fait le": "", Commentaire: ""
   }));
-  (state.log || []).filter(l => l.type === "bonus" && (l.childId === cid || l.child === cname)).forEach(l => rows.push({
-    ts: l.ts,
-    Date: fmtDate(l.ts),
-    Enfant: l.child,
-    "Catégorie": "Étoile bonus",
-    "Détail": "Étoile spontanée",
-    Taille: "",
-    Montant: (l.n > 0 ? "+" : "") + l.n + " ⭐",
-    Statut: "",
-    Par: l.by || "",
-    "Fait le": "",
-    Commentaire: l.reason || ""
+  (state.log || []).filter(l => l.type === "bonus").forEach(l => rows.push({
+    ts: l.ts, Date: fmtDate(l.ts), Enfant: l.child, "Catégorie": "Étoile bonus", "Détail": "Étoile spontanée",
+    Taille: "", Montant: (l.n > 0 ? "+" : "") + l.n + " ⭐", Statut: "", Par: l.by || "", "Fait le": "", Commentaire: l.reason || ""
   }));
-  rows.sort((a, b) => b.ts - a.ts);
+  (state.routineLog || []).forEach(e => rows.push({
+    ts: e.ts, Date: fmtDate(e.ts), Enfant: e.child, "Catégorie": "Routine", "Détail": e.routine,
+    Taille: "", Montant: "+" + e.stars + " ⭐", Statut: "Validé", Par: "", "Fait le": "", Commentaire: ""
+  }));
   return rows;
 }
 
-// Lignes "Historique des routines" (par semaine, enfant, action)
-function routineRows() {
-  const rows = [];
-  Object.keys(state.starHistory || {}).sort().reverse().forEach(wk => {
-    const per = state.starHistory[wk];
-    [child(selectedChild)].forEach(c => {
-      const h = per[c.id];
-      if (!h) return;
-      Object.values(h.byRoutine || {}).forEach(b => rows.push({ Semaine: wk, Enfant: c.name, Action: b.label, "Étoiles": b.count }));
-      rows.push({ Semaine: wk, Enfant: c.name, Action: "— Total semaine —", "Étoiles": h.total });
-    });
+// Applique filtres + tri (vue affichée et exportée)
+function getJournalView() {
+  let rows = journalRows();
+  for (const col in jFilters) {
+    const allowed = jFilters[col];
+    if (allowed) rows = rows.filter(r => allowed.has(String(r[col] == null ? "" : r[col])));
+  }
+  const { col, dir } = jSort;
+  rows.sort((a, b) => {
+    let cmp;
+    if (col === "Date") cmp = a.ts - b.ts;
+    else cmp = String(a[col] == null ? "" : a[col]).localeCompare(String(b[col] == null ? "" : b[col]), "fr");
+    return dir === "asc" ? cmp : -cmp;
   });
   return rows;
 }
 
-function dataTable(rows, cols, catCol) {
-  if (!rows.length) return `<p class="empty">Rien pour l'instant.</p>`;
-  const head = cols.map(c => `<th>${c}</th>`).join("");
-  const body = rows.map(r => {
-    const cls = catCol && r[catCol] ? " class=\"cat-" + normalize(r[catCol]) + "\"" : "";
-    return `<tr${cls}>${cols.map(c => `<td>${esc(r[c] == null ? "" : r[c])}</td>`).join("")}</tr>`;
-  }).join("");
-  return `<div class="tbl-wrap"><table class="data-tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+// Modale de filtre d'une colonne (façon tableur)
+function openColFilter(col) {
+  const values = [...new Set(journalRows().map(r => String(r[col] == null ? "" : r[col])))].sort((a, b) => a.localeCompare(b, "fr"));
+  const active = jFilters[col];
+  openModal(`<h3>Filtrer : ${esc(col)}</h3>
+    <div class="flt-actions"><button class="btn ghost small" id="flt-all">Tout cocher</button> <button class="btn ghost small" id="flt-none">Tout décocher</button></div>
+    <div class="flt-list">${values.map((v, i) => `<label class="flt"><input type="checkbox" data-i="${i}" ${(!active || active.has(v)) ? "checked" : ""}> ${esc(v) || "(vide)"}</label>`).join("")}</div>
+    <button class="btn primary" id="flt-ok" style="width:100%;margin-top:12px">Appliquer</button>`);
+  const boxes = [...modalContent.querySelectorAll(".flt input")];
+  modalContent.querySelector("#flt-all").onclick = () => boxes.forEach(b => b.checked = true);
+  modalContent.querySelector("#flt-none").onclick = () => boxes.forEach(b => b.checked = false);
+  modalContent.querySelector("#flt-ok").onclick = () => {
+    const checked = boxes.filter(b => b.checked).map(b => values[+b.dataset.i]);
+    if (checked.length === values.length) delete jFilters[col]; else jFilters[col] = new Set(checked);
+    closeModal(); render();
+  };
 }
 
 function renderJournal() {
-  const jr = journalRows(), rr = routineRows();
-  const c0 = child(selectedChild);
+  const rows = getJournalView();
+  const total = journalRows().length;
+  const head = J_COLS.map(col => {
+    const arrow = jSort.col === col ? (jSort.dir === "asc" ? " ▲" : " ▼") : "";
+    return `<th><div class="col-hd">
+      <button class="col-sort" data-act="jsort" data-col="${col}">${col}${arrow}</button>
+      <button class="col-filter ${jFilters[col] ? "on" : ""}" data-act="jfilter" data-col="${col}" title="Filtrer">▾</button>
+    </div></th>`;
+  }).join("");
+  const body = rows.length
+    ? rows.map(r => `<tr class="cat-${normalize(r["Catégorie"])}">${J_COLS.map(c => `<td>${esc(r[c] == null ? "" : r[c])}</td>`).join("")}</tr>`).join("")
+    : `<tr><td colspan="${J_COLS.length}" class="empty">Aucune ligne (un filtre est peut-être actif).</td></tr>`;
+  const filtered = Object.keys(jFilters).length > 0;
   view.innerHTML = `
     <div class="setting-block">
       <div class="jhead">
-        <h3>⏳🎁 Punitions &amp; récompenses <span class="muted">(${jr.length})</span></h3>
-        <button class="btn primary small" data-act="export-xlsx" data-kind="journal" ${jr.length ? "" : "disabled"}>⬇️ Excel</button>
+        <h3>📒 Journal <span class="muted">(${rows.length}${rows.length !== total ? " / " + total : ""})</span></h3>
+        <div style="display:flex;gap:6px">
+          ${filtered ? `<button class="btn ghost small" data-act="jclear">Effacer filtres</button>` : ""}
+          <button class="btn primary small" data-act="export-xlsx" ${rows.length ? "" : "disabled"}>⬇️ Excel</button>
+        </div>
       </div>
-      ${dataTable(jr, ["Date", "Enfant", "Catégorie", "Détail", "Taille", "Montant", "Statut", "Par", "Fait le", "Commentaire"], "Catégorie")}
-    </div>
-    <div class="setting-block">
-      <div class="jhead">
-        <h3>⭐ Historique des routines <span class="muted">(${rr.length})</span></h3>
-        <button class="btn primary small" data-act="export-xlsx" data-kind="routines" ${rr.length ? "" : "disabled"}>⬇️ Excel</button>
-      </div>
-      ${dataTable(rr, ["Semaine", "Enfant", "Action", "Étoiles"], null)}
+      <div class="tbl-wrap"><table class="data-tbl jtbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     </div>`;
 }
 
-async function exportJournalXlsx(kind) {
-  const isRoutines = kind === "routines";
-  const rows = isRoutines ? routineRows() : journalRows().map(({ ts, ...keep }) => keep);
-  const sheetName = isRoutines ? "Routines" : "Punitions & récompenses";
-  const cn = normalize((child(selectedChild) || {}).name || "enfant").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const fileBase = (isRoutines ? "historique-routines-" : "historique-punitions-recompenses-") + cn;
+async function exportJournalXlsx() {
+  const rows = getJournalView().map(({ ts, ...keep }) => keep);
   if (!rows.length) { toast("Rien à exporter"); return; }
   try {
     const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sheetName);
-    XLSX.writeFile(wb, fileBase + ".xlsx");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Journal");
+    XLSX.writeFile(wb, "journal-nola-james.xlsx");
     toast("Export Excel téléchargé ✓");
   } catch (e) {
     console.warn("SheetJS indisponible, repli CSV", e);
-    exportCsvSingle(rows, fileBase);
+    exportCsvSingle(rows, "journal-nola-james");
   }
 }
 
@@ -884,7 +885,12 @@ view.addEventListener("click", (e) => {
     // décocher une étoile déjà mise en banque → on la retire aussi de la banque
     if (wasOn) {
       const v = weekValCells(childId)[rid];
-      if (v && v[day]) { v[day] = false; const c = child(childId); c.stars = Math.max(0, c.stars - 1); }
+      if (v && v[day]) {
+        v[day] = false; const c = child(childId); c.stars = Math.max(0, c.stars - 1);
+        const dayTs = dateOfWeekday(day);
+        const i = state.routineLog.findIndex(e => e.childId === childId && e.routineId === rid && e.ts === dayTs);
+        if (i >= 0) state.routineLog.splice(i, 1);
+      }
     }
     commit();
   }
@@ -892,10 +898,15 @@ view.addEventListener("click", (e) => {
     const day = +el.dataset.day, c = child(childId);
     const cells = weekCells(childId), vcells = weekValCells(childId);
     let added = 0;
+    const dayTs = dateOfWeekday(day);
     for (const rid in cells) {
       if (cells[rid][day]) {
         vcells[rid] = vcells[rid] || [false, false, false, false, false, false, false];
-        if (!vcells[rid][day]) { vcells[rid][day] = true; added++; }
+        if (!vcells[rid][day]) {
+          vcells[rid][day] = true; added++;
+          const r = c.routines.find(x => x.id === rid);
+          state.routineLog.unshift({ ts: dayTs, childId: c.id, child: c.name, routineId: rid, routine: r ? r.label : rid, stars: 1 });
+        }
       }
     }
     if (!added) { toast("Rien à valider ce jour (déjà validé ou aucune étoile)"); return; }
@@ -908,7 +919,10 @@ view.addEventListener("click", (e) => {
     openWeekConfirm(childId);
   }
   else if (a === "show-history") openHistory();
-  else if (a === "export-xlsx") exportJournalXlsx(el.dataset.kind);
+  else if (a === "export-xlsx") exportJournalXlsx();
+  else if (a === "jsort") { const col = el.dataset.col; if (jSort.col === col) jSort.dir = jSort.dir === "asc" ? "desc" : "asc"; else jSort = { col, dir: "asc" }; render(); }
+  else if (a === "jfilter") openColFilter(el.dataset.col);
+  else if (a === "jclear") { jFilters = {}; render(); }
   else if (a === "give-bonus") {
     const inp = document.getElementById("bonus-" + childId);
     const n = Math.round(+(inp && inp.value) || 0);
@@ -1202,9 +1216,7 @@ function openWeekConfirm(childId) {
     </div>`);
   modalContent.querySelector("#wk-cancel").onclick = closeModal;
   modalContent.querySelector("#wk-ok").onclick = () => {
-    const wk = weekKey(), vcells = weekValCells(childId), byRoutine = {};
-    c.routines.forEach(r => { const n = (vcells[r.id] || []).filter(Boolean).length; if (n) byRoutine[r.id] = { label: r.label, count: n }; });
-    if (val > 0) { state.starHistory[wk] = state.starHistory[wk] || {}; state.starHistory[wk][childId] = { total: val, ts: Date.now(), byRoutine }; }
+    const wk = weekKey();
     if (state.week[wk]) delete state.week[wk][childId];
     if (state.weekValidated[wk]) delete state.weekValidated[wk][childId];
     closeModal(); toast(`Semaine de ${c.name} remise à zéro`); commit();
