@@ -518,9 +518,9 @@ function pickerCards(c) {
 }
 
 function statusInfo(e) {
-  const running = !!(state.running && state.running.id === e.id);
+  if (state.running && state.running.id === e.id) return { t: "En cours", cls: "st-doing" };
   if (e.status === "pending") return { t: "À faire", cls: "st-todo" };
-  if (e.status === "in_progress") return running ? { t: "En cours", cls: "st-doing" } : { t: "Interrompue", cls: "st-paused" };
+  if (e.status === "in_progress") return { t: "Interrompue", cls: "st-paused" };
   if (e.status === "served") return { t: "Terminé", cls: "st-served" };
   if (e.status === "pardoned") return { t: "Pardonné", cls: "st-pard" };
   return { t: e.status, cls: "" };
