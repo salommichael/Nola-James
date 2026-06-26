@@ -517,11 +517,15 @@ function pickerCards(c) {
   }).join("");
 }
 
-function statusBadge(e) {
-  const map = { pending: ["En attente", "st-pending"], in_progress: ["En cours", "st-prog"], served: ["Fait ✓", "st-served"], pardoned: ["Pardonné", "st-pard"] };
-  const [t, cls] = map[e.status] || ["?", ""];
-  return `<span class="stbadge ${cls}">${t}</span>`;
+function statusInfo(e) {
+  const running = !!(state.running && state.running.id === e.id);
+  if (e.status === "pending") return { t: "À faire", cls: "st-todo" };
+  if (e.status === "in_progress") return running ? { t: "En cours", cls: "st-doing" } : { t: "Interrompue", cls: "st-paused" };
+  if (e.status === "served") return { t: "Terminé", cls: "st-served" };
+  if (e.status === "pardoned") return { t: "Pardonné", cls: "st-pard" };
+  return { t: e.status, cls: "" };
 }
+function statusBadge(e) { const s = statusInfo(e); return `<span class="stbadge ${s.cls}">${s.t}</span>`; }
 
 // Pie chart du temps d'une punition (part faite vs restante), avec temps restant live optionnel
 function pieFrac(e, rem) {
@@ -633,7 +637,7 @@ function journalRows() {
   const rows = [];
   state.punishmentLog.forEach(e => rows.push({
     ts: e.loggedTs, Date: fmtLogged(e), Enfant: childName(e.childId), "Catégorie": "Punition",
-    "Détail": e.typeLabel, Taille: e.size, Montant: fmtDur(e.durationMin), Statut: STATUS_TEXT[e.status] || e.status,
+    "Détail": e.typeLabel, Taille: e.size, Montant: fmtDur(e.durationMin), Statut: statusInfo(e).t,
     Par: e.by || "", "Fait le": e.servedTs ? fmtDate(e.servedTs) : "", Commentaire: e.comment || ""
   }));
   (state.log || []).filter(l => l.type === "récompense").forEach(l => rows.push({

@@ -269,7 +269,10 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .stbadge { font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .st-pending { background: #fff3d6; color: #b9870b; }
 .st-prog { background: #e3f1fd; color: #2c6fb0; }
-.st-served { background: #dff3e0; color: #2d7a45; }
+.st-todo { background: #fff3cf; color: #b9870b; }     /* À faire — jaune */
+.st-doing { background: #dff3e0; color: #2d7a45; }    /* En cours — vert */
+.st-paused { background: #ffe2cc; color: #c2691c; }   /* Interrompue — orange */
+.st-served { background: #eceef1; color: #5a5a66; }   /* Terminé — neutre */
 .st-pard { background: #eee; color: #777; }
 .edited { font-size: .66rem; background: #eee; color: #888; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
 .jactions { display: flex; gap: 4px; flex-wrap: wrap; }
