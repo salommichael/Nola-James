@@ -402,7 +402,7 @@ function commitRunning() {
   if (!e) { state.running = null; return; }
   const elapsed = (Date.now() - r.since) / 60000;
   e.remainingMin = Math.max(0, +(e.remainingMin - elapsed).toFixed(3));
-  if (e.remainingMin <= 0) { e.status = "served"; e.servedTs = Date.now(); state.running = null; }
+  if (e.remainingMin <= 0) { e.status = "done"; e.servedTs = Date.now(); state.running = null; }
   else { e.status = "in_progress"; }
 }
 
@@ -521,6 +521,7 @@ function statusInfo(e) {
   if (state.running && state.running.id === e.id) return { t: "En cours", cls: "st-doing" };
   if (e.status === "pending") return { t: "À faire", cls: "st-todo" };
   if (e.status === "in_progress") return { t: "Interrompue", cls: "st-paused" };
+  if (e.status === "done") return { t: "Fait", cls: "st-done" };
   if (e.status === "served") return { t: "Terminé", cls: "st-served" };
   if (e.status === "pardoned") return { t: "Pardonné", cls: "st-pard" };
   return { t: e.status, cls: "" };
@@ -544,10 +545,16 @@ function pieSvg(frac, title) {
 }
 
 // Liste des punitions EN ATTENTE d'un enfant (les "faites" disparaissent → onglet Journal).
+// Entrées affichées dans la liste : à faire / en cours / interrompue / faites (pas encore archivées)
+function listEntries(childId) {
+  return state.punishmentLog
+    .filter(e => e.childId === childId && (e.status === "pending" || e.status === "in_progress" || e.status === "done"))
+    .sort((a, b) => a.loggedTs - b.loggedTs);
+}
 function activeList(c) {
-  const pend = orderedPending(c.id);
-  if (!pend.length) return `<p class="empty">Aucune punition en attente 🎉</p>`;
-  return pend.map(activeRow).join("");
+  const rows = listEntries(c.id);
+  if (!rows.length) return `<p class="empty">Aucune punition en attente 🎉</p>`;
+  return rows.map(activeRow).join("");
 }
 function activeRow(e) {
   const running = !!(state.running && state.running.id === e.id);
@@ -555,7 +562,9 @@ function activeRow(e) {
   const by = e.by ? ` · par ${esc(e.by)}` : "";
   const title = `${fmtDur(e.durationMin)} · reste ${fmtDur(Math.ceil(rem))}`;
   const pct = Math.min(100, Math.max(0, (e.durationMin - rem) / e.durationMin * 100));
-  return `<div class="sess-row ${running ? "current" : ""}" data-act="toggle-pun" data-id="${e.id}" data-pun-row="${e.id}" title="${running ? "Cliquer pour mettre en pause" : "Cliquer pour lancer le chrono"}">
+  const doneCls = e.status === "done" ? "done" : "";
+  const titre = e.status === "done" ? "Punition faite — clique sur « Fait ✓ » pour l'archiver" : (running ? "Cliquer pour mettre en pause" : "Cliquer pour lancer le chrono");
+  return `<div class="sess-row ${running ? "current" : ""} ${doneCls}" data-act="toggle-pun" data-id="${e.id}" data-pun-row="${e.id}" title="${titre}">
     <span class="sess-fill" data-fill style="width:${pct}%"></span>
     <span class="ic">${e.icon}</span>
     <div class="grow">
@@ -1022,7 +1031,11 @@ view.addEventListener("click", (e) => {
     commit();
   }
   // ---- Punitions : journal ----
-  else if (a === "mark-served") openMarkServed(id);
+  else if (a === "mark-served") {
+    const e = state.punishmentLog.find(x => x.id === id);
+    if (e && e.status === "done") { e.status = "served"; if (!e.servedTs) e.servedTs = Date.now(); toast("Punition archivée ✓"); commit(); }
+    else openMarkServed(id);
+  }
   else if (a === "edit-log") openEditLog(id);
   else if (a === "pardon-log") {
     const ent = state.punishmentLog.find(x => x.id === id);

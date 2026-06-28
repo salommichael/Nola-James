@@ -272,6 +272,8 @@ h4.sec { margin: 16px 0 6px; color: var(--ink); font-size: .98rem; }
 .st-todo { background: #fff3cf; color: #b9870b; }     /* À faire — jaune */
 .st-doing { background: #dff3e0; color: #2d7a45; }    /* En cours — vert */
 .st-paused { background: #ffe2cc; color: #c2691c; }   /* Interrompue — orange */
+.st-done { background: #cdeed2; color: #1f6b38; }      /* Fait (sablier fini) — vert */
+.sess-row.done { background: #eafbee; }
 .st-served { background: #eceef1; color: #5a5a66; }   /* Terminé — neutre */
 .st-pard { background: #eee; color: #777; }
 .edited { font-size: .66rem; background: #eee; color: #888; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
