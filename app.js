@@ -33,7 +33,7 @@ const DEFAULT_STATE = {
   children: [
     {
       id: "nola", name: "Nola", age: 5, color: "pink", emoji: "🌸", stars: 0,
-      durations: { S: 15, M: 60, L: 240 },
+      durations: { XS: 5, S: 15, M: 60, L: 240 },
       thresholds: { yellow: 1, orange: 2, red: 4 },
       routines: [
         { id: "n1", icon: "🧸", label: "Je range mes jouets / ma chambre" },
@@ -46,7 +46,7 @@ const DEFAULT_STATE = {
     },
     {
       id: "james", name: "James", age: 3, color: "blue", emoji: "🚗", stars: 0,
-      durations: { S: 10, M: 30, L: 120 },
+      durations: { XS: 5, S: 10, M: 30, L: 120 },
       thresholds: { yellow: 0.5, orange: 1, red: 2 },
       routines: [
         { id: "j1", icon: "🧸", label: "Je range mes jouets" },
@@ -61,7 +61,7 @@ const DEFAULT_STATE = {
     { id: "p1", size: "S", icon: "🙅", label: "Refus (« non », « je n'ai pas envie »)" },
     { id: "p2", size: "S", icon: "🔁", label: "Répéter une consigne + de 2 fois" },
     { id: "p3", size: "S", icon: "📢", label: "Crier / hurler / faire du bruit sans raison" },
-    { id: "p4", size: "S", icon: "😤", label: "Râler" },
+    { id: "p4", size: "XS", icon: "😤", label: "Râler" },
     { id: "p5", size: "M", icon: "✋", label: "Violence physique (taper, pincer, pousser)" },
     { id: "p6", size: "M", icon: "🤥", label: "Mensonge maintenu" },
     { id: "p6b", size: "S", icon: "🙊", label: "Mensonge avoué" },
@@ -271,7 +271,7 @@ function hydrate(loaded) {
   s.parents = (loaded.parents && loaded.parents.length) ? loaded.parents : base.parents;
   s.children = (loaded.children || base.children).map(c => ({
     ...c,
-    durations: { S: 15, M: 60, L: 240, ...(c.durations || {}) },
+    durations: { XS: 5, S: 15, M: 60, L: 240, ...(c.durations || {}) },
     thresholds: { yellow: 1, orange: 2, red: 4, ...(c.thresholds || {}) }
   }));
   // Migration : mensonge unique → mensonge maintenu (M) + mensonge avoué (S)
@@ -284,6 +284,18 @@ function hydrate(loaded) {
       s.punishments.splice(i >= 0 ? i + 1 : s.punishments.length, 0, { id: "p6b", size: "S", icon: "🙊", label: "Mensonge avoué" });
     }
     s.migrations.mensonge2 = true;
+  }
+  // Migration : nouvelle taille XS (5 min) ; Râler devient XS ; anciens Râler transférés à 5 min
+  if (!s.migrations.xs) {
+    const p4 = s.punishments.find(x => x.id === "p4");
+    if (p4 && p4.label === "Râler") p4.size = "XS";
+    s.punishmentLog.forEach(e => {
+      if (e.typeLabel === "Râler") {
+        e.size = "XS"; e.durationMin = 5;
+        if (e.remainingMin > 5) e.remainingMin = 5;
+      }
+    });
+    s.migrations.xs = true;
   }
   return s;
 }
@@ -824,6 +836,7 @@ function renderReglages() {
       <div class="field" style="margin-top:10px">
         <label>Durées des punitions (minutes)</label>
         <div class="row" style="border:none">
+          <span class="size-tag size-XS">XS</span><input type="number" class="num" value="${c.durations.XS}" data-act="edit-dur" data-child="${c.id}" data-size="XS" />
           <span class="size-tag size-S">S</span><input type="number" class="num" value="${c.durations.S}" data-act="edit-dur" data-child="${c.id}" data-size="S" />
           <span class="size-tag size-M">M</span><input type="number" class="num" value="${c.durations.M}" data-act="edit-dur" data-child="${c.id}" data-size="M" />
           <span class="size-tag size-L">L</span><input type="number" class="num" value="${c.durations.L}" data-act="edit-dur" data-child="${c.id}" data-size="L" />
@@ -867,7 +880,7 @@ function renderReglages() {
           <button class="ic-btn" data-act="pick-emoji" data-target="pun" data-id="${p.id}">${p.icon}</button>
           <input type="text" class="grow" value="${esc(p.label)}" data-act="edit-pun-label" data-id="${p.id}" />
           <select data-act="edit-pun-size" data-id="${p.id}">
-            ${["S", "M", "L"].map(s => `<option value="${s}" ${p.size === s ? "selected" : ""}>${s}</option>`).join("")}
+            ${["XS", "S", "M", "L"].map(s => `<option value="${s}" ${p.size === s ? "selected" : ""}>${s}</option>`).join("")}
           </select>
           <button class="btn danger small" data-act="del-pun" data-id="${p.id}">✕</button>
         </div>`).join("")}
